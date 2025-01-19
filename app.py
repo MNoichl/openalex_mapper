@@ -414,6 +414,8 @@ theme = gr.themes.Monochrome(
     button_secondary_background_fill_hover="#f3f4f6",
     button_secondary_border_color="black",
     button_secondary_text_color="black",
+    button_border_width="2px",
+
 )
 
 
@@ -497,7 +499,7 @@ with gr.Blocks(theme=theme) as demo:
         with gr.Column(scale=2):
             html = gr.HTML(
                 value='<div style="width: 100%; height: 1000px; display: flex; justify-content: center; align-items: center; border: 1px solid #ccc; background-color: #f8f9fa;"><p style="font-size: 1.2em; color: #666;">The visualization map will appear here after running a query</p></div>',
-                label="", 
+                label="Map", 
                 show_label=True
             )
     gr.Markdown("""
