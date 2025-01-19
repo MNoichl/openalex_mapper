@@ -1,0 +1,39 @@
+# Ignore everything
+*
+
+# But not these files...
+!.gitignore
+!*.py
+!requirements.txt
+!README.md
+
+# Even if they are in subdirectories
+!*/
+
+# Ignore Python cache files even though we allow .py files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore virtual environments
+venv/
+env/
+.env/
+.venv/
+
+# Ignore IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore downloaded model files and data
+*.pkl
+*.pt
+*.pth
+*.bin
+*.h5
+
+# Ignore generated files
+static/
+*.log
