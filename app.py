@@ -128,7 +128,14 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     # Check if input is empty or whitespace
     print(f"Input: {text_input}")
     if not text_input or text_input.isspace():
-        return "Error: Please enter a valid OpenAlex URL in the 'OpenAlex-search URL'-field", gr.DownloadButton(label=f"Download Interactive Visualization", value='html_file_path', visible=False)
+        error_message = "Error: Please enter a valid OpenAlex URL in the 'OpenAlex-search URL'-field"
+        return [
+            error_message,  # iframe HTML
+            gr.DownloadButton(label="Download Interactive Visualization", value='html_file_path', visible=False),  # html download
+            gr.DownloadButton(label="Download CSV Data", value='csv_file_path', visible=False),  # csv download
+            gr.DownloadButton(label="Download Static Plot", value='png_file_path', visible=False),  # png download
+            gr.Button(visible=False)  # cancel button state
+        ]
 
     
     # Check if the input is a valid OpenAlex URL
@@ -235,6 +242,8 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     # Create and save plot
     plot_start = time.time()
     progress(0.7, desc="Creating plot...")
+    # Create a solid black colormap
+    black_cmap = mcolors.LinearSegmentedColormap.from_list('black', ['#000000', '#000000'])
     
     
     plot = datamapplot.create_interactive_plot(
@@ -251,16 +260,18 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
         text_outline_width=5,
         point_hover_color='#5e2784',
         point_radius_max_pixels=7,
-        color_label_text=False,
+        cmap=black_cmap,
+        #color_label_text=False,
         font_family="Roboto Condensed",
-        font_weight=700,
+        font_weight=600,
         tooltip_font_weight=600,
         tooltip_font_family="Roboto Condensed",
         extra_point_data=extra_data,
         on_click="window.open(`{doi}`)",
         custom_css=DATAMAP_CUSTOM_CSS,
         initial_zoom_fraction=.8,
-        enable_search=False
+        enable_search=False,
+        offline_mode=False
     )
 
     # Save plot
@@ -388,18 +399,21 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     # Return iframe and download buttons with appropriate visibility
     return [
         iframe,
-        gr.DownloadButton(label="Download Interactive Visualization", value=html_file_path, visible=True),
-        gr.DownloadButton(label="Download CSV Data", value=csv_file_path, visible=download_csv_checkbox),
-        gr.DownloadButton(label="Download Static Plot", value=png_file_path, visible=download_png_checkbox),
+        gr.DownloadButton(label="Download Interactive Visualization", value=html_file_path, visible=True, variant='secondary'),
+        gr.DownloadButton(label="Download CSV Data", value=csv_file_path, visible=download_csv_checkbox, variant='secondary'),
+        gr.DownloadButton(label="Download Static Plot", value=png_file_path, visible=download_png_checkbox, variant='secondary'),
         gr.Button(visible=False)  # Return hidden state for cancel button
     ]
 
 
 theme = gr.themes.Monochrome(
     font=[gr.themes.GoogleFont("Roboto Condensed"), "ui-sans-serif", "system-ui", "sans-serif"],
-    
     text_size="lg",
-
+).set(
+    button_secondary_background_fill="white",
+    button_secondary_background_fill_hover="#f3f4f6",
+    button_secondary_border_color="black",
+    button_secondary_text_color="black",
 )
 
 
@@ -424,9 +438,9 @@ with gr.Blocks(theme=theme) as demo:
                 cancel_btn = gr.Button("Cancel", visible=False, variant='secondary')
             
             # Create separate download buttons
-            html_download = gr.DownloadButton("Download Interactive Visualization", visible=False)
-            csv_download = gr.DownloadButton("Download CSV Data", visible=False)
-            png_download = gr.DownloadButton("Download Static Plot", visible=False)
+            html_download = gr.DownloadButton("Download Interactive Visualization", visible=False, variant='secondary')
+            csv_download = gr.DownloadButton("Download CSV Data", visible=False, variant='secondary')
+            png_download = gr.DownloadButton("Download Static Plot", visible=False, variant='secondary')
 
             text_input = gr.Textbox(label="OpenAlex-search URL",
                                     info="Enter the URL to an OpenAlex-search.")
@@ -483,7 +497,7 @@ with gr.Blocks(theme=theme) as demo:
         with gr.Column(scale=2):
             html = gr.HTML(
                 value='<div style="width: 100%; height: 1000px; display: flex; justify-content: center; align-items: center; border: 1px solid #ccc; background-color: #f8f9fa;"><p style="font-size: 1.2em; color: #666;">The visualization map will appear here after running a query</p></div>',
-                label="HTML preview", 
+                label="", 
                 show_label=True
             )
     gr.Markdown("""

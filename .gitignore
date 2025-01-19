@@ -20,6 +20,7 @@ venv/
 env/
 .env/
 .venv/
+openalex_env_map/
 
 # Ignore IDE specific files
 .idea/
