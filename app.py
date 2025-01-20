@@ -253,7 +253,7 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
         
         hover_text=[str(row['title']) for ix, row in stacked_df.iterrows()],
         marker_color_array=stacked_df['color'],
-        use_medoids=False,
+        use_medoids=True,
         width=1000,
         height=1000,
         point_radius_min_pixels=1,
