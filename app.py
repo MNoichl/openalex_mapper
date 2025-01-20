@@ -513,7 +513,7 @@ with gr.Blocks(theme=theme, css="""
             html = gr.HTML(
                 value='<div style="width: 100%; height: 1000px; display: flex; justify-content: center; align-items: center; border: 1px solid #ccc; background-color: #f8f9fa;"><p style="font-size: 1.2em; color: #666;">The visualization map will appear here after running a query</p></div>',
                 label="", 
-                show_label=True
+                show_label=False
             )
     gr.Markdown("""
     <div style="max-width: 100%; margin: 0 auto;">
