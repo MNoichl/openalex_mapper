@@ -253,7 +253,7 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
         
         hover_text=[str(row['title']) for ix, row in stacked_df.iterrows()],
         marker_color_array=stacked_df['color'],
-        use_medoids=True,
+        use_medoids=False,
         width=1000,
         height=1000,
         point_radius_min_pixels=1,
@@ -415,19 +415,32 @@ theme = gr.themes.Monochrome(
     button_secondary_border_color="black",
     button_secondary_text_color="black",
     button_border_width="2px",
-
 )
 
 
 # Gradio interface setup
-with gr.Blocks(theme=theme) as demo:
+with gr.Blocks(theme=theme, css="""
+    .gradio-container a {
+        color: black !important;
+        text-decoration: none !important;  /* Force remove default underline */
+        font-weight: bold;
+        transition: color 0.2s ease-in-out, border-bottom-color 0.2s ease-in-out;
+        display: inline-block;  /* Enable proper spacing for descenders */
+        line-height: 1.1;  /* Adjust line height */
+        padding-bottom: 2px;  /* Add space for descenders */
+    }
+    .gradio-container a:hover {
+        color: #b23310 !important;
+        border-bottom: 3px solid #b23310;  /* Wider underline, only on hover */
+    }
+""") as demo:
     gr.Markdown("""
     <div style="max-width: 100%; margin: 0 auto;">
     <br>
     
     # OpenAlex Mapper
     
-    OpenAlex Mapper is a way of projecting search queries from the amazing OpenAlex database on a background map of randomly sampled papers from OpenAlex, which allows you to easily investigate interdisciplinary connections. OpenAlex Mapper was developed by Maximilian Noichl and Andrea Loettgers at the Possible Life project.
+    OpenAlex Mapper is a way of projecting search queries from the amazing OpenAlex database on a background map of randomly sampled papers from OpenAlex, which allows you to easily investigate interdisciplinary connections. OpenAlex Mapper was developed by [Maximilian Noichl](https://maxnoichl.eu) and [Andrea Loettgers](https://unige.academia.edu/AndreaLoettgers) at the [Possible Life project](http://www.possiblelife.eu/).
 
     To use OpenAlex Mapper, first head over to [OpenAlex](https://openalex.org/) and search for something that interests you. For example, you could search for all the papers that make use of the [Kuramoto model](https://openalex.org/works?page=1&filter=default.search%3A%22Kuramoto%20Model%22), for all the papers that were published by researchers at [Utrecht University in 2019](https://openalex.org/works?page=1&filter=authorships.institutions.lineage%3Ai193662353,publication_year%3A2019), or for all the papers that cite Wittgenstein's [Philosophical Investigations](https://openalex.org/works?page=1&filter=cites%3Aw4251395411). Then you copy the URL to that search query into the OpenAlex search URL box below and click "Run Query." It will take a moment to download all of these records from OpenAlex and embed them on our interactive map. After a little time, that map will appear and be available for you to interact with and download. You can find more explanations in the FAQs below.
     </div>
@@ -499,7 +512,7 @@ with gr.Blocks(theme=theme) as demo:
         with gr.Column(scale=2):
             html = gr.HTML(
                 value='<div style="width: 100%; height: 1000px; display: flex; justify-content: center; align-items: center; border: 1px solid #ccc; background-color: #f8f9fa;"><p style="font-size: 1.2em; color: #666;">The visualization map will appear here after running a query</p></div>',
-                label="Map", 
+                label="", 
                 show_label=True
             )
     gr.Markdown("""
@@ -526,6 +539,7 @@ with gr.Blocks(theme=theme) as demo:
     2. When pressing down a really high-dimensional space into a low-dimensional one, there will be trade-offs. For example, we see this big ring structure of the sciences on the map, but in the middle of the map there is a overly stretchedstring of bioinformaticsthat stretches from computer science at the bottom up to the life sciences clusters at the top. This is one of the areas where the UMAP algorithm had trouble pressing our high-dimensional dataset into a low-dimensional space. For more information on how to read a UMAP plot, I recommend looking into ["Understanding UMAP"](https://pair-code.github.io/understanding-umap/) by Andy Coenen & Adam Pearce.
     
     3. Finally, the labels we're using for the regions of this plot are created from OpenAlex's own labels of sub-disciplines. They give a rough indication of the papers that could be expected in this broad area of the map, but they are not necessarily the perfect label for the articles that are precisely below them. They are just located at the median point of a usually much larger, much broader, and fuzzier category, so they should always be taken with quite a big grain of salt.
+    
     </div>
     """)
 
