@@ -13,9 +13,7 @@ hf_oauth_expiration_minutes: 43200
 preload_from_hub:
   - m7n/intermediate_sci_pickle 100k_filtered_OA_sample_cluster_and_positions_supervised.pkl,umap_mapper_250k_random_OA_discipline_tuned_specter_2_params.pkl
   - m7n/discipline-tuned_specter_2_024 model.safetensors
-  
 ---
-
 
 
 
