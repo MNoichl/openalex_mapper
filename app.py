@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 import tqdm
 import colormaps
 import matplotlib.colors as mcolors
+from matplotlib.colors import Normalize
+
 
 
 import opinionated # for fonts
@@ -51,6 +53,11 @@ from data_setup import (
     setup_embedding_model,
     
 )
+
+from network_utils import create_citation_graph, draw_citation_graph
+
+
+
 
 # Configure OpenAlex
 pyalex.config.email = "maximilian.noichl@uni-bamberg.de"
@@ -109,7 +116,7 @@ def create_embeddings(texts_to_embedd):
 
 def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduction_method, 
            plot_time_checkbox, locally_approximate_publication_date_checkbox, 
-           download_csv_checkbox, download_png_checkbox, progress=gr.Progress()):
+           download_csv_checkbox, download_png_checkbox,citation_graph_checkbox, progress=gr.Progress()):
     """
     Main prediction pipeline that processes OpenAlex queries and creates visualizations.
     
@@ -146,33 +153,41 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     print('Starting data projection pipeline')
     progress(0.1, desc="Starting...")
 
-    # Query OpenAlex
-    query_start = time.time()
-    query, params = openalex_url_to_pyalex_query(text_input)
-    
-    filename = openalex_url_to_filename(text_input)
-    print(f"Filename: {filename}")
-    
-    query_length = query.count()
-    print(f'Requesting {query_length} entries...')
-    
+    # Split input into multiple URLs if present
+    urls = [url.strip() for url in text_input.split(';')]
     records = []
-    target_size = sample_size_slider if reduce_sample_checkbox and sample_reduction_method == "First n samples" else query_length
+    total_query_length = 0
     
-    
-    should_break = False
-    for page in query.paginate(per_page=200,n_max=None):
-        for record in page:
-            records.append(record)
-            progress(0.1 + (0.2 * len(records) / target_size), desc="Getting queried data...")
-           # print(len(records))
-            if reduce_sample_checkbox and sample_reduction_method == "First n samples" and len(records) >= target_size:
-                should_break = True
+    # Use first URL for filename
+    first_query, first_params = openalex_url_to_pyalex_query(urls[0])
+    filename = openalex_url_to_filename(urls[0])
+    print(f"Filename: {filename}")
+
+    # Process each URL
+    for i, url in enumerate(urls):
+        query, params = openalex_url_to_pyalex_query(url)
+        query_length = query.count()
+        total_query_length += query_length
+        print(f'Requesting {query_length} entries from query {i+1}/{len(urls)}...')
+        
+        target_size = sample_size_slider if reduce_sample_checkbox and sample_reduction_method == "First n samples" else query_length
+        records_per_query = 0
+        
+        should_break = False
+        for page in query.paginate(per_page=200, n_max=None):
+            for record in page:
+                records.append(record)
+                records_per_query += 1
+                progress(0.1 + (0.2 * len(records) / (total_query_length)), 
+                        desc=f"Getting data from query {i+1}/{len(urls)}...")
+                
+                if reduce_sample_checkbox and sample_reduction_method == "First n samples" and records_per_query >= target_size:
+                    should_break = True
+                    break
+            if should_break:
                 break
-        if should_break:
-            break
-    
-    print(f"Query completed in {time.time() - query_start:.2f} seconds")
+
+    print(f"Query completed in {time.time() - start_time:.2f} seconds")
 
     # Process records
     processing_start = time.time()
@@ -239,6 +254,17 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     extra_data = pd.DataFrame(stacked_df['doi'])
     print(f"Visualization data prepared in {time.time() - viz_prep_start:.2f} seconds")
     
+    if citation_graph_checkbox:
+        citation_graph = create_citation_graph(records_df)
+        graph_file_name = f"{filename}_citation_graph.jpg"
+        graph_file_path = static_dir / graph_file_name
+        draw_citation_graph(citation_graph,path=graph_file_path,bundle_edges=True,
+                            min_max_coordinates=[np.min(stacked_df['x']),np.max(stacked_df['x']),np.min(stacked_df['y']),np.max(stacked_df['y'])])
+        
+
+
+    
+    
     # Create and save plot
     plot_start = time.time()
     progress(0.7, desc="Creating plot...")
@@ -261,6 +287,7 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
         point_hover_color='#5e2784',
         point_radius_max_pixels=7,
         cmap=black_cmap,
+        background_image=graph_file_name if citation_graph_checkbox else None,
         #color_label_text=False,
         font_family="Roboto Condensed",
         font_weight=600,
@@ -287,8 +314,10 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     png_file_path = static_dir / f"{filename}.png"
     
     if download_csv_checkbox:
-        # Export relevant columns
-        export_df = records_df[['title', 'abstract', 'doi', 'publication_year', 'x', 'y']]
+        # Export relevant column
+        export_df = records_df[['title', 'abstract', 'doi', 'publication_year', 'x', 'y','id','primary_topic']]
+        export_df['parsed_field'] =   [get_field(row) for ix, row in export_df.iterrows()]
+        export_df['referenced_works'] = [', '.join(x) for x in records_df['referenced_works']]
         export_df.to_csv(csv_file_path, index=False)
         
     if download_png_checkbox:
@@ -307,15 +336,18 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
         
         # Get the 30 most common labels
         unique_labels, counts = np.unique(combined_labels, return_counts=True)
-        top_30_labels = set(unique_labels[np.argsort(counts)[-50:]])
+        top_30_labels = set(unique_labels[np.argsort(counts)[-70:]])
         
         # Replace less common labels with 'Unlabelled'
         combined_labels = np.array(['Unlabelled' if label not in top_30_labels else label for label in combined_labels])
-        
+        #combined_labels = np.array(['Unlabelled'  for label in combined_labels])
+        #if label not in top_30_labels else label
         colors_base = ['#536878' for _ in range(len(labels1))]
         print(f"Sample preparation completed in {time.time() - sample_prep_start:.2f} seconds")
 
         # Create main plot
+        print(labels1)
+        print(labels2)
         print(sample_to_plot[['x','y']].values)
         print(combined_labels)
         
@@ -342,6 +374,16 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
         )
         print(f"Main plot creation completed in {time.time() - main_plot_start:.2f} seconds")
 
+     
+        if citation_graph_checkbox:
+
+            # Read and add the graph image
+            graph_img = plt.imread(graph_file_path)
+            ax.imshow(graph_img, extent=[np.min(stacked_df['x']),np.max(stacked_df['x']),np.min(stacked_df['y']),np.max(stacked_df['y'])],
+                      alpha=0.9, aspect='auto')
+            
+            
+            
         # Time-based visualization
         scatter_start = time.time()
         if plot_time_checkbox:
@@ -506,6 +548,12 @@ with gr.Blocks(theme=theme, css="""
                 info="Export a static PNG visualization. This will make things slower!"
             )
             
+            gr.Markdown("### Citation graph")
+            citation_graph_checkbox = gr.Checkbox(
+                label="Add Citation Graph",
+                value=True,
+                info="Adds a citation graph of the sample to the plot."
+            )
             
             
             
@@ -529,6 +577,10 @@ with gr.Blocks(theme=theme, css="""
     ## How does it work?
 
     The base map for this project is developed by randomly downloading 250,000 articles from OpenAlex, then embedding their abstracts using our [fine-tuned](https://huggingface.co/m7n/discipline-tuned_specter_2_024) version of the [specter-2](https://huggingface.co/allenai/specter2_aug2023refresh_base) language model, running these embeddings through [UMAP](https://umap-learn.readthedocs.io/en/latest/) to give us a two-dimensional representation, and displaying that in an interactive window using [datamapplot](https://datamapplot.readthedocs.io/en/latest/index.html). After the data for your query is downloaded from OpenAlex, it then undergoes the exact same process, but the pre-trained UMAP model from earlier is used to project your new data points onto this original map, showing where they would show up if they were included in the original sample. For more details, you can take a look at the method section of this paper: **...**
+    
+    ## I want to add multiple queries at once!
+
+    That can be a good idea, e. g. if your interested in a specific paper, as well as all the papers that cite it. Just add the queries to the query box and separate them with a ";" without any spaces in between!
 
     ## I think I found a mistake in  the map.
 
@@ -568,7 +620,7 @@ with gr.Blocks(theme=theme, css="""
         inputs=[text_input, sample_size_slider, reduce_sample_checkbox, 
                 sample_reduction_method, plot_time_checkbox, 
                 locally_approximate_publication_date_checkbox,
-                download_csv_checkbox, download_png_checkbox],
+                download_csv_checkbox, download_png_checkbox,citation_graph_checkbox],
         outputs=[html, html_download, csv_download, png_download, cancel_btn]
     )
 
