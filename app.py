@@ -254,21 +254,21 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     stacked_df['parsed_field'] = [get_field(row) for ix, row in stacked_df.iterrows()]
     extra_data = pd.DataFrame(stacked_df['doi'])
     print(f"Visualization data prepared in {time.time() - viz_prep_start:.2f} seconds")
-    
     if citation_graph_checkbox:
+        citation_graph_start = time.time()
         citation_graph = create_citation_graph(records_df)
         graph_file_name = f"{filename}_citation_graph.jpg"
         graph_file_path = static_dir / graph_file_name
         draw_citation_graph(citation_graph,path=graph_file_path,bundle_edges=True,
                             min_max_coordinates=[np.min(stacked_df['x']),np.max(stacked_df['x']),np.min(stacked_df['y']),np.max(stacked_df['y'])])
-        
+        print(f"Citation graph created and saved in {time.time() - citation_graph_start:.2f} seconds")
 
 
     
     
     # Create and save plot
     plot_start = time.time()
-    progress(0.7, desc="Creating plot...")
+    progress(0.7, desc="Creating interactive plot...")
     # Create a solid black colormap
     black_cmap = mcolors.LinearSegmentedColormap.from_list('black', ['#000000', '#000000'])
     
@@ -337,7 +337,7 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
         
         # Get the 30 most common labels
         unique_labels, counts = np.unique(combined_labels, return_counts=True)
-        top_30_labels = set(unique_labels[np.argsort(counts)[-70:]])
+        top_30_labels = set(unique_labels[np.argsort(counts)[-50:]])
         
         # Replace less common labels with 'Unlabelled'
         combined_labels = np.array(['Unlabelled' if label not in top_30_labels else label for label in combined_labels])
