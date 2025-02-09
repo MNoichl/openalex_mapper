@@ -186,7 +186,8 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
                     break
             if should_break:
                 break
-
+        if should_break:
+            break
     print(f"Query completed in {time.time() - start_time:.2f} seconds")
 
     # Process records
@@ -551,7 +552,7 @@ with gr.Blocks(theme=theme, css="""
             gr.Markdown("### Citation graph")
             citation_graph_checkbox = gr.Checkbox(
                 label="Add Citation Graph",
-                value=True,
+                value=False,
                 info="Adds a citation graph of the sample to the plot."
             )
             
