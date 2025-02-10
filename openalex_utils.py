@@ -30,13 +30,16 @@ def openalex_url_to_pyalex_query(url):
                 else:
                     query = query.filter(**{key: value})
     
-    # Handle sort
+    # Handle sort - Fixed to properly handle field:direction format
     if 'sort' in query_params:
         sort_params = query_params['sort'][0].split(',')
         for s in sort_params:
-            if s.startswith('-'):
+            if ':' in s:  # Handle field:direction format
+                field, direction = s.split(':')
+                query = query.sort(**{field: direction})
+            elif s.startswith('-'):  # Handle -field format
                 query = query.sort(**{s[1:]: 'desc'})
-            else:
+            else:  # Handle field format
                 query = query.sort(**{s: 'asc'})
     
     # Handle other parameters
