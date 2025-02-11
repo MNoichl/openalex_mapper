@@ -109,11 +109,12 @@ def no_op_decorator(func):
 decorator_to_use = spaces.GPU() if is_running_in_hf_space() else no_op_decorator
 #duration=120
     
-@decorator_to_use
 def create_embeddings(texts_to_embedd):
     """Create embeddings for the input texts using the loaded model."""
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
 
+
+@decorator_to_use
 def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduction_method, 
            plot_time_checkbox, locally_approximate_publication_date_checkbox, 
            download_csv_checkbox, download_png_checkbox,citation_graph_checkbox, progress=gr.Progress()):
