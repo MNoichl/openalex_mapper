@@ -106,8 +106,8 @@ def no_op_decorator(func):
     return wrapper
 
 # Decide which decorator to use based on environment
-decorator_to_use = spaces.GPU(duration=120) if is_running_in_hf_space() else no_op_decorator
-
+decorator_to_use = spaces.GPU() if is_running_in_hf_space() else no_op_decorator
+#duration=120
     
 @decorator_to_use
 def create_embeddings(texts_to_embedd):
