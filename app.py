@@ -6,38 +6,68 @@ import torch
 from spaces.zero.client import _get_token
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-import uvicorn
 from pathlib import Path
 
 # FastAPI setup
 app = FastAPI()
+
 static_dir = Path('./static')
 static_dir.mkdir(parents=True, exist_ok=True)
+
+# Create a sample HTML file in the static directory for demonstration
+with open(static_dir / "test.html", "w", encoding="utf-8") as f:
+    f.write("<html><body><h1>Hello from static!</h1><p>We're serving this file without uvicorn!</p></body></html>")
+
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-@spaces.GPU(duration=4*60) # Not possible with IP-based quotas
+
+@spaces.GPU(duration=4*60)  # Not possible with IP-based quotas on certain Spaces
 def inner():
     return "ok"
 
+
 def greet(request: gr.Request, n):
+    """
+    Example function that verifies GPU usage and decodes a token.
+    """
+    from spaces.zero.client import _get_token
     token = _get_token(request)
-    print(token)
-    assert inner() ==  "ok"
+    print("Token:", token)
+    # Check that the GPU-decorated function still works
+    assert inner() == "ok"
+
+    # A small example of token decoding
     payload = token.split('.')[1]
     payload = f"{payload}{'=' * ((4 - len(payload) % 4) % 4)}"
-    return json.loads(base64.urlsafe_b64decode(payload).decode())
+    try:
+        decoded = base64.urlsafe_b64decode(payload).decode()
+        return json.loads(decoded)
+    except Exception as e:
+        return {"error": str(e)}
 
-demo = gr.Interface(fn=greet, inputs=gr.Number(), outputs=gr.JSON())
 
-# Mount Gradio app
+# Build a simple Gradio Blocks interface that also shows a static HTML iframe
+with gr.Blocks() as demo:
+    gr.Markdown("## Testing Static File Serving Without uvicorn")
+
+    # Show the static HTML file inside an iframe
+    gr.HTML(
+        value='<iframe src="/static/test.html" width="100%" height="300px"></iframe>',
+        label="Static HTML Demo"
+    )
+
+    # Add the original demonstration interface
+    # (just a numeric input feeding into the greet() function)
+    greet_interface = gr.Interface(fn=greet, inputs=gr.Number(), outputs=gr.JSON())
+    greet_interface.render()
+
+
+# Mount the Gradio app
 app = gr.mount_gradio_app(app, demo, path="/", ssr_mode=False)
-
 app.zerogpu = True
 
-def start_server(app):
-    uvicorn.run(app, host="0.0.0.0", port=7860)
-
-start_server.zerogpu = True
-
+# We do NOT manually run uvicorn here; HF Spaces will serve the FastAPI app automatically.
 if __name__ == "__main__":
-    start_server(app)
+    # This pass ensures that if you run it locally (e.g., python app.py),
+    # nothing breaks, but on Spaces it's auto-served via the 'app' object.
+    pass
