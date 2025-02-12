@@ -1,4 +1,5 @@
 import spaces # necessary to run on Zero.
+from spaces.zero.client import _get_token
 
 import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -70,13 +71,11 @@ pyalex.config.email = "maximilian.noichl@uni-bamberg.de"
 
 print(f"Imports completed: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# FastAPI setup
-app = FastAPI()
-static_dir = Path('./static')
-static_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# Gradio configuration
+
+# Instead of FastAPI setup, just use Gradio's file serving
+static_dir = Path("./static")
+static_dir.mkdir(parents=True, exist_ok=True)
 gr.set_static_paths(paths=["static/"])
 
 # Resource configuration
@@ -116,20 +115,22 @@ def no_op_decorator(func):
 # #duration=120
 
 # @decorator_to_use
-@spaces.GPU
+@spaces.GPU(duration=4*60)
 def create_embeddings(texts_to_embedd):
     """Create embeddings for the input texts using the loaded model."""
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
 
 
-@spaces.GPU
-def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduction_method, 
-           plot_time_checkbox, locally_approximate_publication_date_checkbox, 
-           download_csv_checkbox, download_png_checkbox,citation_graph_checkbox, progress=gr.Progress()):
+def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_checkbox, 
+           sample_reduction_method, plot_time_checkbox, 
+           locally_approximate_publication_date_checkbox, 
+           download_csv_checkbox, download_png_checkbox, citation_graph_checkbox, 
+           progress=gr.Progress()):
     """
     Main prediction pipeline that processes OpenAlex queries and creates visualizations.
     
     Args:
+        request (gr.Request): Gradio request object
         text_input (str): OpenAlex query URL
         sample_size_slider (int): Maximum number of samples to process
         reduce_sample_checkbox (bool): Whether to reduce sample size
@@ -141,6 +142,10 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     Returns:
         tuple: (link to visualization, iframe HTML)
     """
+    # Get the authentication token
+    token = _get_token(request)
+    print(f"Token: {token}")
+    print(f"Request: {request}")
     # Check if input is empty or whitespace
     print(f"Input: {text_input}")
     if not text_input or text_input.isspace():
@@ -152,6 +157,7 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
             gr.DownloadButton(label="Download Static Plot", value='png_file_path', visible=False),  # png download
             gr.Button(visible=False)  # cancel button state
         ]
+
 
     
     # Check if the input is a valid OpenAlex URL
@@ -441,12 +447,9 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
 
 
 
-
-
     progress(1.0, desc="Done!")
     print(f"Total pipeline completed in {time.time() - start_time:.2f} seconds")
-    
-    iframe = f"""<iframe src="/static/{html_file_name}" width="100%" height="1000px"></iframe>"""
+    iframe = f"""<iframe src="{html_file_path}" width="100%" height="1000px"></iframe>"""
     
     # Return iframe and download buttons with appropriate visibility
     return [
@@ -635,10 +638,17 @@ with gr.Blocks(theme=theme, css="""
         queue=False
     ).then(
         fn=predict,
-        inputs=[text_input, sample_size_slider, reduce_sample_checkbox, 
-                sample_reduction_method, plot_time_checkbox, 
-                locally_approximate_publication_date_checkbox,
-                download_csv_checkbox, download_png_checkbox,citation_graph_checkbox],
+        inputs=[
+            text_input, 
+            sample_size_slider, 
+            reduce_sample_checkbox, 
+            sample_reduction_method, 
+            plot_time_checkbox, 
+            locally_approximate_publication_date_checkbox,
+            download_csv_checkbox, 
+            download_png_checkbox,
+            citation_graph_checkbox
+        ],
         outputs=[html, html_download, csv_download, png_download, cancel_btn]
     )
 
@@ -650,20 +660,17 @@ with gr.Blocks(theme=theme, css="""
         queue=False  # Important to make the button hide immediately
     )
 
-show_cancel_button.zerogpu = True
-hide_cancel_button.zerogpu = True
-predict.zerogpu = True
+
+# demo.static_dirs = {
+#     "static": str(static_dir)
+# }
+
 
 # Mount and run app
-app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
+# app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
 
-app.zerogpu = True  # Add this line
+# app.zerogpu = True  # Add this line
 
-
-def start_server(app):
-    uvicorn.run(app, host="0.0.0.0", port=7860)
-
-start_server.zerogpu = True
 
 if __name__ == "__main__":
-    start_server(app)
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=True,allowed_paths=["/static"])
