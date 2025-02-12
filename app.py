@@ -37,7 +37,7 @@ def is_running_in_hf_space():
 
 #if is_running_in_hf_space():
 import spaces # necessary to run on Zero.
-print(f"Spaces version: {spaces.__version__}")
+#print(f"Spaces version: {spaces.__version__}")
 
 import datamapplot
 import pyalex
