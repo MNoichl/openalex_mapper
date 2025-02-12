@@ -54,4 +54,4 @@ The Gradio app generates dynamic HTML files and stores them in a static director
 
     new_btn.click(fn=predict, inputs=[text_input], outputs=[markdown, html])
 
-block.launch(debug=True, share=False)#,ssr_mode=False
+block.launch(debug=True, share=False, ssr_mode=False)#,ssr_mode=False
