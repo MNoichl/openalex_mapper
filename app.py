@@ -45,6 +45,13 @@ def greet(request: gr.Request, n):
     except Exception as e:
         return {"error": str(e)}
 
+@spaces.GPU(duration=4*60)  # Not possible with IP-based quotas on certain Spaces
+def greet_wrapper(request: gr.Request, n):
+    """
+    Simple wrapper function that passes through inputs to greet function
+    """
+    return greet(request, n)
+
 
 # Build a simple Gradio Blocks interface that also shows a static HTML iframe
 with gr.Blocks() as demo:
@@ -58,7 +65,7 @@ with gr.Blocks() as demo:
 
     # Add the original demonstration interface
     # (just a numeric input feeding into the greet() function)
-    greet_interface = gr.Interface(fn=greet, inputs=gr.Number(), outputs=gr.JSON())
+    greet_interface = gr.Interface(fn=greet_wrapper, inputs=gr.Number(), outputs=gr.JSON())
     greet_interface.render()
 
 
