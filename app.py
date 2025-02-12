@@ -493,6 +493,7 @@ with gr.Blocks(theme=theme, css="""
     """)
     
     gr.LoginButton()
+    
 
     with gr.Row():
         with gr.Column(scale=1):
