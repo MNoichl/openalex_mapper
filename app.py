@@ -2,7 +2,7 @@ from pathlib import Path
 import gradio as gr
 from datetime import datetime
 import sys
-
+import os
 
 import spaces # necessary to run on Zero.
 from spaces.zero.client import _get_token
@@ -33,9 +33,11 @@ def predict(request: gr.Request,text_input):
     </body>
     </html>
         """)
-    iframe = f'<iframe src="/file=static/{file_name}" width="100%" height="500px"></iframe>'
-    link = f'<a href="/file=static/{file_name}" target="_blank">{file_name}</a>'
-    print("Serving file at:", f"/file=static/{file_name}")
+    file_path = static_dir / file_name
+    os.chmod(file_path, 0o644)
+    iframe = f'<iframe src="/file={file_path}" width="100%" height="500px"></iframe>'
+    link = f'<a href="/file={file_path}" target="_blank">{file_name}</a>'
+    print("Serving file at:", f"/file={file_path}")
     return link, iframe
 
 with gr.Blocks() as block:
