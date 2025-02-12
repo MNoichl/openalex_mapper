@@ -638,7 +638,6 @@ with gr.Blocks(theme=theme, css="""
     ).then(
         fn=predict,
         inputs=[
-            gr.Request,
             text_input, 
             sample_size_slider, 
             reduce_sample_checkbox, 
