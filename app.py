@@ -114,7 +114,7 @@ def no_op_decorator(func):
 # #duration=120
 
 # @decorator_to_use
-@spaces.GPU()
+@spaces.GPU
 def create_embeddings(texts_to_embedd):
     """Create embeddings for the input texts using the loaded model."""
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
