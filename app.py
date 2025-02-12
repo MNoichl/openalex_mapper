@@ -13,7 +13,7 @@ static_dir = Path('./static')
 static_dir.mkdir(parents=True, exist_ok=True)
 os.environ["GRADIO_ALLOWED_PATHS"] = str(static_dir.resolve())
 #export GRADIO_ALLOWED_PATHS="/static"
-print(os.environ["GRADIO_ALLOWED_PATHS"] )
+print("os.environ['GRADIO_ALLOWED_PATHS'] = ",os.environ["GRADIO_ALLOWED_PATHS"] )
 
 @spaces.GPU(duration=10)
 def predict(request: gr.Request,text_input):
