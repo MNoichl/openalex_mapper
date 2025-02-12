@@ -35,8 +35,9 @@ from sklearn.neighbors import NearestNeighbors
 def is_running_in_hf_space():
     return "SPACE_ID" in os.environ
 
-if is_running_in_hf_space():
-    import spaces # necessary to run on Zero.
+#if is_running_in_hf_space():
+import spaces # necessary to run on Zero.
+print(f"Spaces version: {spaces.__version__}")
 
 import datamapplot
 import pyalex
