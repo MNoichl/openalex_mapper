@@ -154,6 +154,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             gr.Button(visible=False)  # cancel button state
         ]
 
+
     
     # Check if the input is a valid OpenAlex URL
 
