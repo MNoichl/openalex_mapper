@@ -43,10 +43,10 @@ def predict(request: gr.Request, text_input):
 </html>
 """)
     os.chmod(file_path, 0o644)
-    # Construct the URL using the repository-relative path.
-    iframe = f'<iframe src="/file=static/{file_name}" width="100%" height="500px"></iframe>'
-    link = f'<a href="/file=static/{file_name}" target="_blank">{file_name}</a>'
-    print("Serving file at URL:", f"/file=static/{file_name}")
+    # Use the direct static route instead of Gradio's file route
+    iframe = f'<iframe src="/static/{file_name}" width="100%" height="500px"></iframe>'
+    link = f'<a href="/static/{file_name}" target="_blank">{file_name}</a>'
+    print("Serving file at URL:", f"/static/{file_name}")
     return link, iframe
 
 with gr.Blocks() as block:
