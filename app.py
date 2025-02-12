@@ -4,12 +4,17 @@ from datetime import datetime
 import sys
 
 
+import spaces # necessary to run on Zero.
+from spaces.zero.client import _get_token
+
+
 # create a static directory to store the static files
 static_dir = Path('./static')
 static_dir.mkdir(parents=True, exist_ok=True)
 
-
-def predict(text_input):
+@spaces.GPU(duration=4*60)
+def predict(request: gr.Request,text_input):
+    token = _get_token(request)
     file_name = f"{datetime.utcnow().strftime('%s')}.html"
     file_path = static_dir / file_name
     print(file_path)
