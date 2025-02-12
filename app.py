@@ -10,6 +10,9 @@ from pathlib import Path
 from datetime import datetime
 from itertools import chain
 
+import base64
+import json
+
 # Third-party imports
 import numpy as np
 import pandas as pd
