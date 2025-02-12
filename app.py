@@ -4,6 +4,9 @@ from datetime import datetime
 import os
 import spaces  # necessary to run on Zero.
 from spaces.zero.client import _get_token
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+import uvicorn
 
 # Create a static directory to store the dynamic HTML files
 static_dir = Path("./static")
@@ -12,6 +15,12 @@ static_dir.mkdir(parents=True, exist_ok=True)
 # Tell Gradio which absolute paths are allowed to be served
 os.environ["GRADIO_ALLOWED_PATHS"] = str(static_dir.resolve())
 print("os.environ['GRADIO_ALLOWED_PATHS'] =", os.environ["GRADIO_ALLOWED_PATHS"])
+
+# Create FastAPI app
+app = FastAPI()
+
+# Mount the static directory
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @spaces.GPU(duration=10)
 def predict(request: gr.Request, text_input):
@@ -43,7 +52,7 @@ def predict(request: gr.Request, text_input):
 with gr.Blocks() as block:
     gr.Markdown("""
 ## Gradio + Static Files Demo
-This demo generates dynamic HTML files and stores them in a "static" directory. They are then served via Gradio’s `/file=` route.
+This demo generates dynamic HTML files and stores them in a "static" directory. They are then served via Gradio's `/file=` route.
 """)
     with gr.Row():
         with gr.Column():
@@ -55,4 +64,9 @@ This demo generates dynamic HTML files and stores them in a "static" directory. 
 
     new_btn.click(fn=predict, inputs=[text_input], outputs=[markdown, html])
 
-block.launch(debug=True, share=False, ssr_mode=False)
+# Mount Gradio app to FastAPI
+app = gr.mount_gradio_app(app, block, path="/")
+
+# Run both servers
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=7860)
