@@ -37,7 +37,6 @@ def predict(request: gr.Request,text_input):
     </html>
         """)
     # file_path = static_dir / file_name
-    os.chmod(file_path, 0o644)
     iframe = f'<iframe src="/file={file_name}" width="100%" height="500px"></iframe>'
     link = f'<a href="/file={file_name}" target="_blank">{file_name}</a>'
     print("Serving file at:", f"/file={file_path}")
