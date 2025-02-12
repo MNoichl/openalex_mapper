@@ -158,6 +158,12 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     """
     # Get the authentication token
     token = _get_token(request)
+    
+
+    payload = token.split('.')[1]
+    payload = f"{payload}{'=' * ((4 - len(payload) % 4) % 4)}"
+    payload = json.loads(base64.urlsafe_b64decode(payload).decode())
+    print(payload)
 
     # Check if input is empty or whitespace
     print(f"Input: {text_input}")
