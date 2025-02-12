@@ -22,7 +22,7 @@ app = FastAPI()
 # Mount the static directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@spaces.GPU(duration=10)
+@spaces.GPU(duration=4*60)
 def predict(request: gr.Request, text_input):
     token = _get_token(request)
     file_name = f"{datetime.utcnow().strftime('%s')}.html"
