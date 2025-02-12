@@ -12,6 +12,9 @@ import numpy as np
 import pandas as pd
 import torch
 import gradio as gr
+
+print(f"Gradio version: {gr.__version__}")
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn
