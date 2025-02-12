@@ -71,7 +71,11 @@ pyalex.config.email = "maximilian.noichl@uni-bamberg.de"
 
 print(f"Imports completed: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
+
+
 # Instead of FastAPI setup, just use Gradio's file serving
+static_dir = Path("static")
+static_dir.mkdir(exist_ok=True)  # Create the static directory if it doesn't exist
 gr.set_static_paths(paths=["static/"])
 
 # Resource configuration
