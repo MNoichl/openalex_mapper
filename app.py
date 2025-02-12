@@ -452,7 +452,6 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
         gr.Button(visible=False)  # Return hidden state for cancel button
     ]
 
-
 predict.zerogpu = True
 
 
@@ -651,5 +650,13 @@ with gr.Blocks(theme=theme, css="""
 # Mount and run app
 app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
 
-if __name__ == "__main__":
+app.zerogpu = True  # Add this line
+
+
+def start_server(app):
     uvicorn.run(app, host="0.0.0.0", port=7860)
+
+start_server.zerogpu = True
+
+if __name__ == "__main__":
+    start_server(app)
