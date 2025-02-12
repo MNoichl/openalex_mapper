@@ -37,8 +37,8 @@ def predict(request: gr.Request,text_input):
         """)
     file_path = static_dir / file_name
     os.chmod(file_path, 0o644)
-    iframe = f'<iframe src="/file={file_path}" width="100%" height="500px"></iframe>'
-    link = f'<a href="/file={file_path}" target="_blank">{file_name}</a>'
+    iframe = f'<iframe src="/file=static/{file_name}" width="100%" height="500px"></iframe>'
+    link = f'<a href="/file=static/{file_name}" target="_blank">{file_name}</a>'
     print("Serving file at:", f"/file={file_path}")
     return link, iframe
 
@@ -58,4 +58,4 @@ The Gradio app generates dynamic HTML files and stores them in a static director
 
     new_btn.click(fn=predict, inputs=[text_input], outputs=[markdown, html])
 
-block.launch(debug=True, share=True, ssr_mode=False)#,ssr_mode=False
+block.launch(debug=True, share=False, ssr_mode=False)#,ssr_mode=False
