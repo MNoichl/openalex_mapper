@@ -1,3 +1,5 @@
+import spaces # necessary to run on Zero.
+
 import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -120,6 +122,7 @@ def create_embeddings(texts_to_embedd):
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
 
 
+@spaces.GPU
 def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduction_method, 
            plot_time_checkbox, locally_approximate_publication_date_checkbox, 
            download_csv_checkbox, download_png_checkbox,citation_graph_checkbox, progress=gr.Progress()):
