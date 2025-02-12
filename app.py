@@ -148,6 +148,10 @@ else:
         return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
     
     
+    
+    
+    
+    
 
 def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_checkbox, 
            sample_reduction_method, plot_time_checkbox, 
@@ -171,13 +175,14 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         tuple: (link to visualization, iframe HTML)
     """
     # Get the authentication token
-    token = _get_token(request)
-    
-
-    payload = token.split('.')[1]
-    payload = f"{payload}{'=' * ((4 - len(payload) % 4) % 4)}"
-    payload = json.loads(base64.urlsafe_b64decode(payload).decode())
-    print(payload)
+    if is_running_in_hf_space():
+        token = _get_token(request)
+        payload = token.split('.')[1]
+        payload = f"{payload}{'=' * ((4 - len(payload) % 4) % 4)}"
+        payload = json.loads(base64.urlsafe_b64decode(payload).decode())
+        print(payload)
+    else:
+        pass
 
     # Check if input is empty or whitespace
     print(f"Input: {text_input}")
