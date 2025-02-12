@@ -11,8 +11,8 @@ from spaces.zero.client import _get_token
 # create a static directory to store the static files
 static_dir = Path('./static')
 static_dir.mkdir(parents=True, exist_ok=True)
-#os.environ["GRADIO_ALLOWED_PATHS"] = str(static_dir.resolve())
-export GRADIO_ALLOWED_PATHS="/static"
+os.environ["GRADIO_ALLOWED_PATHS"] = str(static_dir.resolve())
+#export GRADIO_ALLOWED_PATHS="/static"
 print(os.environ["GRADIO_ALLOWED_PATHS"] )
 
 @spaces.GPU(duration=10)
