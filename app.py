@@ -453,6 +453,9 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     ]
 
 
+predict.zerogpu = True
+
+
 
 theme = gr.themes.Monochrome(
     font=[gr.themes.GoogleFont("Roboto Condensed"), "ui-sans-serif", "system-ui", "sans-serif"],
@@ -616,6 +619,10 @@ with gr.Blocks(theme=theme, css="""
     
     def hide_cancel_button():
         return gr.Button(visible=False)
+    
+    show_cancel_button.zerogpu = True
+    hide_cancel_button.zerogpu = True
+    predict.zerogpu = True
 
     # Update the run button click event
     run_event = run_btn.click(
@@ -640,7 +647,6 @@ with gr.Blocks(theme=theme, css="""
     )
 
 
-predict.zerogpu = True
 
 # Mount and run app
 app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
