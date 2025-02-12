@@ -11,6 +11,8 @@ from spaces.zero.client import _get_token
 # create a static directory to store the static files
 static_dir = Path('./static')
 static_dir.mkdir(parents=True, exist_ok=True)
+os.environ["GRADIO_ALLOWED_PATHS"] = str(static_dir.resolve())
+
 
 @spaces.GPU(duration=10)
 def predict(request: gr.Request,text_input):
