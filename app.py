@@ -158,8 +158,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     """
     # Get the authentication token
     token = _get_token(request)
-    print(f"Token: {token}")
-    print(f"Request: {request}")
+
     # Check if input is empty or whitespace
     print(f"Input: {text_input}")
     if not text_input or text_input.isspace():
@@ -690,7 +689,7 @@ with gr.Blocks(theme=theme, css="""
 #     demo.launch(server_name="0.0.0.0", server_port=7860, share=True,allowed_paths=["/static"])
     
 # Mount Gradio app to FastAPI
-app = gr.mount_gradio_app(app, demo, path="/")
+app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
 
 # Run both servers
 if __name__ == "__main__":
