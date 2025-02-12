@@ -19,7 +19,7 @@ print("os.environ['GRADIO_ALLOWED_PATHS'] = ",os.environ["GRADIO_ALLOWED_PATHS"]
 def predict(request: gr.Request,text_input):
     token = _get_token(request)
     file_name = f"{datetime.utcnow().strftime('%s')}.html"
-    file_path = static_dir / file_name
+    file_path = "/home/user/app/static/" +  file_name
     print(file_path)
     with open(file_path, "w") as f:
         f.write(f"""
@@ -36,10 +36,10 @@ def predict(request: gr.Request,text_input):
     </body>
     </html>
         """)
-    file_path = static_dir / file_name
+    # file_path = static_dir / file_name
     os.chmod(file_path, 0o644)
-    iframe = f'<iframe src="/file=static/{file_name}" width="100%" height="500px"></iframe>'
-    link = f'<a href="/file=static/{file_name}" target="_blank">{file_name}</a>'
+    iframe = f'<iframe src="/file={file_name}" width="100%" height="500px"></iframe>'
+    link = f'<a href="/file={file_name}" target="_blank">{file_name}</a>'
     print("Serving file at:", f"/file={file_path}")
     return link, iframe
 
