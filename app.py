@@ -1,5 +1,6 @@
-import spaces # necessary to run on Zero.
-from spaces.zero.client import _get_token
+
+
+
 
 import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -41,8 +42,12 @@ from sklearn.neighbors import NearestNeighbors
 def is_running_in_hf_space():
     return "SPACE_ID" in os.environ
 
+if is_running_in_hf_space():
+    import spaces # necessary to run on Zero.
+    from spaces.zero.client import _get_token
+
 #if is_running_in_hf_space():
-import spaces # necessary to run on Zero.
+#import spaces # necessary to run on Zero.
 #print(f"Spaces version: {spaces.__version__}")
 
 import datamapplot
@@ -131,12 +136,18 @@ def no_op_decorator(func):
 # decorator_to_use = spaces.GPU() if is_running_in_hf_space() else no_op_decorator
 # #duration=120
 
-# @decorator_to_use
-@spaces.GPU(duration=4*60)
-def create_embeddings(texts_to_embedd):
-    """Create embeddings for the input texts using the loaded model."""
-    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
 
+if is_running_in_hf_space():
+    @spaces.GPU(duration=4*60)
+    def create_embeddings(texts_to_embedd):
+        """Create embeddings for the input texts using the loaded model."""
+        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+else:
+    def create_embeddings(texts_to_embedd):
+        """Create embeddings for the input texts using the loaded model."""
+        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+    
+    
 
 def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_checkbox, 
            sample_reduction_method, plot_time_checkbox, 
@@ -698,7 +709,10 @@ with gr.Blocks(theme=theme, css="""
 #     demo.launch(server_name="0.0.0.0", server_port=7860, share=True,allowed_paths=["/static"])
     
 # Mount Gradio app to FastAPI
-app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=True)
+if is_running_in_hf_space():
+    app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=True)
+else:
+    app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
 
 # Run both servers
 if __name__ == "__main__":
