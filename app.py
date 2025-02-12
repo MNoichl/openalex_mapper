@@ -70,13 +70,7 @@ pyalex.config.email = "maximilian.noichl@uni-bamberg.de"
 
 print(f"Imports completed: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# FastAPI setup
-app = FastAPI()
-static_dir = Path('./static')
-static_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-# Gradio configuration
+# Instead of FastAPI setup, just use Gradio's file serving
 gr.set_static_paths(paths=["static/"])
 
 # Resource configuration
@@ -652,10 +646,10 @@ with gr.Blocks(theme=theme, css="""
 
 
 # Mount and run app
-app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
+# app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
 
-app.zerogpu = True  # Add this line
+# app.zerogpu = True  # Add this line
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    demo.launch(server_name="0.0.0.0", server_port=7860)
