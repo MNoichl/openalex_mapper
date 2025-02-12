@@ -698,7 +698,7 @@ with gr.Blocks(theme=theme, css="""
 #     demo.launch(server_name="0.0.0.0", server_port=7860, share=True,allowed_paths=["/static"])
     
 # Mount Gradio app to FastAPI
-app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
+app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=True)
 
 # Run both servers
 if __name__ == "__main__":
