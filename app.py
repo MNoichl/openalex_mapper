@@ -73,8 +73,10 @@ with gr.Blocks() as demo:
 app = gr.mount_gradio_app(app, demo, path="/", ssr_mode=False)
 app.zerogpu = True
 
-# We do NOT manually run uvicorn here; HF Spaces will serve the FastAPI app automatically.
-if __name__ == "__main__":
-    # This pass ensures that if you run it locally (e.g., python app.py),
-    # nothing breaks, but on Spaces it's auto-served via the 'app' object.
-    pass
+__all__ = ['app']
+
+# # We do NOT manually run uvicorn here; HF Spaces will serve the FastAPI app automatically.
+# if __name__ == "__main__":
+#     # This pass ensures that if you run it locally (e.g., python app.py),
+#     # nothing breaks, but on Spaces it's auto-served via the 'app' object.
+#     pass
