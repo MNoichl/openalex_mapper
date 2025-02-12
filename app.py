@@ -33,10 +33,10 @@ def predict(request: gr.Request,text_input):
     </body>
     </html>
         """)
-    iframe = f"""<iframe src="file={file_path}" width="100%" height="500px"></iframe>"""
-    link = f'<a href="file={file_path}" target="_blank">{file_name}</a>'
+    iframe = f'<iframe src="/file=static/{file_name}" width="100%" height="500px"></iframe>'
+    link = f'<a href="/file=static/{file_name}" target="_blank">{file_name}</a>'
+    print("Serving file at:", f"/file=static/{file_name}")
     return link, iframe
-
 
 with gr.Blocks() as block:
     gr.Markdown("""
