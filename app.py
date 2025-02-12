@@ -447,8 +447,6 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
 
 
 
-
-
     progress(1.0, desc="Done!")
     print(f"Total pipeline completed in {time.time() - start_time:.2f} seconds")
     iframe = f"""<iframe src="file={html_file_path}" width="100%" height="1000px"></iframe>"""
@@ -663,9 +661,9 @@ with gr.Blocks(theme=theme, css="""
     )
 
 
-demo.static_dirs = {
-    "static": str(static_dir)
-}
+# demo.static_dirs = {
+#     "static": str(static_dir)
+# }
 
 
 # Mount and run app
@@ -675,4 +673,4 @@ demo.static_dirs = {
 
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
