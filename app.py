@@ -453,7 +453,6 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     ]
 
 
-predict.zerogpu = True
 
 theme = gr.themes.Monochrome(
     font=[gr.themes.GoogleFont("Roboto Condensed"), "ui-sans-serif", "system-ui", "sans-serif"],
@@ -494,8 +493,6 @@ with gr.Blocks(theme=theme, css="""
     To use OpenAlex Mapper, first head over to [OpenAlex](https://openalex.org/) and search for something that interests you. For example, you could search for all the papers that make use of the [Kuramoto model](https://openalex.org/works?page=1&filter=default.search%3A%22Kuramoto%20Model%22), for all the papers that were published by researchers at [Utrecht University in 2019](https://openalex.org/works?page=1&filter=authorships.institutions.lineage%3Ai193662353,publication_year%3A2019), or for all the papers that cite Wittgenstein's [Philosophical Investigations](https://openalex.org/works?page=1&filter=cites%3Aw4251395411). Then you copy the URL to that search query into the OpenAlex search URL box below and click "Run Query." It will download all of these records from OpenAlex and embed them on our interactive map. As the embedding step is a little expensive, computationally, it's often a good idea to play around with smaller samples, before running a larger analysis. After a little time, that map will appear and be available for you to interact with and download. You can find more explanations in the FAQs below.
     </div>
     """)
-    
-    gr.LoginButton()
     
 
     with gr.Row():
@@ -641,6 +638,9 @@ with gr.Blocks(theme=theme, css="""
         cancels=[run_event],
         queue=False  # Important to make the button hide immediately
     )
+
+
+predict.zerogpu = True
 
 # Mount and run app
 app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
