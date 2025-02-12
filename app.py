@@ -20,12 +20,18 @@ def predict(request: gr.Request,text_input):
     print(file_path)
     with open(file_path, "w") as f:
         f.write(f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
         <script src="https://cdn.tailwindcss.com"></script>
-        <body class="bg-gray-200 dark:text-white dark:bg-gray-900">
+    </head>
+    <body class="bg-gray-200 dark:text-white dark:bg-gray-900">
         <h1 class="text-3xl font-bold">
-        Hello <i>{text_input}</i> From Gradio Iframe
+            Hello <i>{text_input}</i> From Gradio Iframe
         </h1>
         <h3>Filename: {file_name}</h3>
+    </body>
+    </html>
         """)
     iframe = f"""<iframe src="file={file_path}" width="100%" height="500px"></iframe>"""
     link = f'<a href="file={file_path}" target="_blank">{file_name}</a>'
