@@ -647,7 +647,9 @@ with gr.Blocks(theme=theme, css="""
         queue=False  # Important to make the button hide immediately
     )
 
-
+show_cancel_button.zerogpu = True
+hide_cancel_button.zerogpu = True
+predict.zerogpu = True
 
 # Mount and run app
 app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
