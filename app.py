@@ -12,7 +12,7 @@ from spaces.zero.client import _get_token
 static_dir = Path('./static')
 static_dir.mkdir(parents=True, exist_ok=True)
 
-@spaces.GPU(duration=4*60)
+@spaces.GPU(duration=10)
 def predict(request: gr.Request,text_input):
     token = _get_token(request)
     file_name = f"{datetime.utcnow().strftime('%s')}.html"
@@ -48,4 +48,4 @@ The Gradio app generates dynamic HTML files and stores them in a static director
 
     new_btn.click(fn=predict, inputs=[text_input], outputs=[markdown, html])
 
-block.launch(debug=True, share=False,ssr_mode=False)
+block.launch(debug=True, share=False)#,ssr_mode=False
