@@ -1,4 +1,5 @@
 import spaces # necessary to run on Zero.
+from spaces.zero.client import _get_token
 
 import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -110,20 +111,22 @@ def no_op_decorator(func):
 # #duration=120
 
 # @decorator_to_use
-@spaces.GPU
+@spaces.GPU(duration=4*60)
 def create_embeddings(texts_to_embedd):
     """Create embeddings for the input texts using the loaded model."""
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
 
 
-@spaces.GPU
-def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduction_method, 
-           plot_time_checkbox, locally_approximate_publication_date_checkbox, 
-           download_csv_checkbox, download_png_checkbox,citation_graph_checkbox, progress=gr.Progress()):
+def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_checkbox, 
+           sample_reduction_method, plot_time_checkbox, 
+           locally_approximate_publication_date_checkbox, 
+           download_csv_checkbox, download_png_checkbox, citation_graph_checkbox, 
+           progress=gr.Progress()):
     """
     Main prediction pipeline that processes OpenAlex queries and creates visualizations.
     
     Args:
+        request (gr.Request): Gradio request object
         text_input (str): OpenAlex query URL
         sample_size_slider (int): Maximum number of samples to process
         reduce_sample_checkbox (bool): Whether to reduce sample size
@@ -135,6 +138,10 @@ def predict(text_input, sample_size_slider, reduce_sample_checkbox, sample_reduc
     Returns:
         tuple: (link to visualization, iframe HTML)
     """
+    # Get the authentication token
+    token = _get_token(request)
+    print(f"Token: {token}")
+    print(f"Request: {request}")
     # Check if input is empty or whitespace
     print(f"Input: {text_input}")
     if not text_input or text_input.isspace():
@@ -629,10 +636,18 @@ with gr.Blocks(theme=theme, css="""
         queue=False
     ).then(
         fn=predict,
-        inputs=[text_input, sample_size_slider, reduce_sample_checkbox, 
-                sample_reduction_method, plot_time_checkbox, 
-                locally_approximate_publication_date_checkbox,
-                download_csv_checkbox, download_png_checkbox,citation_graph_checkbox],
+        inputs=[
+            gr.Request,
+            text_input, 
+            sample_size_slider, 
+            reduce_sample_checkbox, 
+            sample_reduction_method, 
+            plot_time_checkbox, 
+            locally_approximate_publication_date_checkbox,
+            download_csv_checkbox, 
+            download_png_checkbox,
+            citation_graph_checkbox
+        ],
         outputs=[html, html_download, csv_download, png_download, cancel_btn]
     )
 
