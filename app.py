@@ -108,11 +108,12 @@ def no_op_decorator(func):
         return func(*args, **kwargs)
     return wrapper
 
-# Decide which decorator to use based on environment
-decorator_to_use = spaces.GPU() if is_running_in_hf_space() else no_op_decorator
-#duration=120
+# # Decide which decorator to use based on environment
+# decorator_to_use = spaces.GPU() if is_running_in_hf_space() else no_op_decorator
+# #duration=120
 
-@decorator_to_use
+# @decorator_to_use
+@spaces.GPU()
 def create_embeddings(texts_to_embedd):
     """Create embeddings for the input texts using the loaded model."""
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
