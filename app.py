@@ -1,7 +1,3 @@
-
-
-
-
 import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -724,6 +720,8 @@ else:
 # Run both servers
 if __name__ == "__main__":
     if is_running_in_hf_space():
-    # For HF Spaces, use SSR mode
+        # For HF Spaces, use SSR mode
         os.environ["GRADIO_SSR_MODE"] = "True"
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+        uvicorn.run("app:app", host="0.0.0.0", port=7860)
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=7860)
