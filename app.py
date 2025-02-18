@@ -38,6 +38,8 @@ def is_running_in_hf_zero_gpu():
     print(os.environ.get("SPACES_ZERO_GPU"))
     return os.environ.get("SPACES_ZERO_GPU")
     
+is_running_in_hf_zero_gpu()
+
 def is_running_in_hf_space():
     return "SPACE_ID" in os.environ
 
