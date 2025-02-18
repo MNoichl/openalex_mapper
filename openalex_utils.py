@@ -97,6 +97,7 @@ def process_records_to_df(records):
     records_df['parsed_publication'] = records_df['parsed_publication'].fillna(' ')
     records_df['abstract'] = records_df['abstract'].fillna(' ')
     records_df['title'] = records_df['title'].fillna(' ')
+    records_df = records_df.drop_duplicates(subset=['id']).reset_index(drop=True)
     
     return records_df 
 
