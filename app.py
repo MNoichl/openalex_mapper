@@ -34,7 +34,10 @@ plt.style.use("opinionated_rc")
 
 from sklearn.neighbors import NearestNeighbors
 
-
+def is_running_in_hf_zero_gpu():
+    print(os.environ.get("SPACES_ZERO_GPU"))
+    return os.environ.get("SPACES_ZERO_GPU")
+    
 def is_running_in_hf_space():
     return "SPACE_ID" in os.environ
 
@@ -134,10 +137,27 @@ def no_op_decorator(func):
 
 
 if is_running_in_hf_space():
-    @spaces.GPU(duration=4*60)
-    def create_embeddings(texts_to_embedd):
+    @spaces.GPU(duration=30)
+    def create_embeddings_30(texts_to_embedd):
         """Create embeddings for the input texts using the loaded model."""
         return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+    
+    @spaces.GPU(duration=59)
+    def create_embeddings_59(texts_to_embedd):
+        """Create embeddings for the input texts using the loaded model."""
+        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+    
+    @spaces.GPU(duration=120)
+    def create_embeddings_120(texts_to_embedd):
+        """Create embeddings for the input texts using the loaded model."""
+        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+    
+    @spaces.GPU(duration=299)
+    def create_embeddings_299(texts_to_embedd):
+        """Create embeddings for the input texts using the loaded model."""
+        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+    
+
 else:
     def create_embeddings(texts_to_embedd):
         """Create embeddings for the input texts using the loaded model."""
@@ -177,8 +197,15 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         payload = f"{payload}{'=' * ((4 - len(payload) % 4) % 4)}"
         payload = json.loads(base64.urlsafe_b64decode(payload).decode())
         print(payload)
-    else:
-        pass
+        user = payload['user']
+        if user == None:
+            user_type = "anonymous"
+        elif '[pro]' in user:
+            user_type = "pro"
+        else:
+            user_type = "registered"
+        print(f"User type: {user_type}")
+   
 
     # Check if input is empty or whitespace
     print(f"Input: {text_input}")
@@ -256,7 +283,20 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     progress(0.3, desc="Embedding Data...")
     texts_to_embedd = [f"{title} {abstract}" for title, abstract 
                       in zip(records_df['title'], records_df['abstract'])]
-    embeddings = create_embeddings(texts_to_embedd)
+    
+    
+    if is_running_in_hf_space():
+        if len(texts_to_embedd) < 2000:
+            embeddings = create_embeddings_30(texts_to_embedd)
+        elif len(texts_to_embedd) < 4000 or user_type == "anonymous":
+            embeddings = create_embeddings_59(texts_to_embedd)
+        elif len(texts_to_embedd) < 8000:
+            embeddings = create_embeddings_120(texts_to_embedd)
+        else:
+            embeddings = create_embeddings_299(texts_to_embedd)
+    else:
+        embeddings = create_embeddings(texts_to_embedd)
+        
     print(f"Embeddings created in {time.time() - embedding_start:.2f} seconds")
 
     # Project embeddings
@@ -540,10 +580,9 @@ with gr.Blocks(theme=theme, css="""
     
     OpenAlex Mapper is a way of projecting search queries from the amazing OpenAlex database on a background map of randomly sampled papers from OpenAlex, which allows you to easily investigate interdisciplinary connections. OpenAlex Mapper was developed by [Maximilian Noichl](https://maxnoichl.eu) and [Andrea Loettgers](https://unige.academia.edu/AndreaLoettgers) at the [Possible Life project](http://www.possiblelife.eu/).
 
-    To use OpenAlex Mapper, first head over to [OpenAlex](https://openalex.org/) and search for something that interests you. For example, you could search for all the papers that make use of the [Kuramoto model](https://openalex.org/works?page=1&filter=default.search%3A%22Kuramoto%20Model%22), for all the papers that were published by researchers at [Utrecht University in 2019](https://openalex.org/works?page=1&filter=authorships.institutions.lineage%3Ai193662353,publication_year%3A2019), or for all the papers that cite Wittgenstein's [Philosophical Investigations](https://openalex.org/works?page=1&filter=cites%3Aw4251395411). Then you copy the URL to that search query into the OpenAlex search URL box below and click "Run Query." It will download all of these records from OpenAlex and embed them on our interactive map. As the embedding step is a little expensive, computationally, it's often a good idea to play around with smaller samples, before running a larger analysis. After a little time, that map will appear and be available for you to interact with and download. You can find more explanations in the FAQs below. 
-    
-    **Note:** Due to some bugs in Gradio, this project currently does not work in the Safari-Browser.
+    To use OpenAlex Mapper, first head over to [OpenAlex](https://openalex.org/) and search for something that interests you. For example, you could search for all the papers that make use of the [Kuramoto model](https://openalex.org/works?page=1&filter=default.search%3A%22Kuramoto%20Model%22), for all the papers that were published by researchers at [Utrecht University in 2019](https://openalex.org/works?page=1&filter=authorships.institutions.lineage%3Ai193662353,publication_year%3A2019), or for all the papers that cite Wittgenstein's [Philosophical Investigations](https://openalex.org/works?page=1&filter=cites%3Aw4251395411). Then you copy the URL to that search query into the OpenAlex search URL box below and click "Run Query." It will download all of these records from OpenAlex and embed them on our interactive map. As the embedding step is a little expensive, computationally, it's often a good idea to play around with smaller samples, before running a larger analysis (see below for a note on sample size and run-time). After a little time, that map will appear and be available for you to interact with and download. You can find more explanations in the FAQs below.
     </div>
+    
     """)
     
 
@@ -636,6 +675,10 @@ with gr.Blocks(theme=theme, css="""
     ## How does it work?
 
     The base map for this project is developed by randomly downloading 250,000 articles from OpenAlex, then embedding their abstracts using our [fine-tuned](https://huggingface.co/m7n/discipline-tuned_specter_2_024) version of the [specter-2](https://huggingface.co/allenai/specter2_aug2023refresh_base) language model, running these embeddings through [UMAP](https://umap-learn.readthedocs.io/en/latest/) to give us a two-dimensional representation, and displaying that in an interactive window using [datamapplot](https://datamapplot.readthedocs.io/en/latest/index.html). After the data for your query is downloaded from OpenAlex, it then undergoes the exact same process, but the pre-trained UMAP model from earlier is used to project your new data points onto this original map, showing where they would show up if they were included in the original sample. For more details, you can take a look at the method section of this paper: **...**
+    
+    ## I'm getting an "out of GPU credits" error.
+    
+    Running the embedding process requires an expensive A100 GPU. To provide this, we make use of HuggingFace's ZeroGPU service. As an anonymous user, this entitles you to one minute of GPU runtime, which is enough for several small queries of around a thousand records every day. If you create a free account on HuggingFace, this should increase to five minutes of runtime, allowing you to run successful queries of up to 10,000 records at a time. If you need more, there's always the option to either buy a HuggingFace Pro subscription for roughly ten dollars a month (entitling you to 25 minutes of runtime every day) or get in touch with us to run the pipeline outside of the HuggingFace environment.
     
     ## I want to add multiple queries at once!
 
