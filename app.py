@@ -433,6 +433,12 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                       alpha=0.9, aspect='auto')
             
             
+        if len(records_df) > 50_000:
+            point_size = .5
+        elif len(records_df) > 10_000:
+            point_size = 1
+        else:
+            point_size = 5
             
         # Time-based visualization
         scatter_start = time.time()
@@ -444,7 +450,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                     c=local_years,
                     cmap=colormaps.haline,
                     alpha=0.8,
-                    s=5
+                    s=point_size
                 )
             else:
                 years = pd.to_numeric(records_df['publication_year'])
@@ -454,7 +460,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                     c=years,
                     cmap=colormaps.haline,
                     alpha=0.8,
-                    s=5
+                    s=point_size
                 )
             plt.colorbar(scatter, shrink=0.5, format='%d')
         else:
@@ -463,7 +469,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 umap_embeddings[:,1],
                 c=records_df['color'],
                 alpha=0.8,
-                s=5
+                s=point_size
             )
         print(f"Scatter plot creation completed in {time.time() - scatter_start:.2f} seconds")
 
