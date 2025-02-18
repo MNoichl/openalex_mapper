@@ -34,6 +34,7 @@ plt.style.use("opinionated_rc")
 
 from sklearn.neighbors import NearestNeighbors
 
+
 def is_running_in_hf_zero_gpu():
     print(os.environ.get("SPACES_ZERO_GPU"))
     return os.environ.get("SPACES_ZERO_GPU")
