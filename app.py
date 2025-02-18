@@ -713,9 +713,9 @@ with gr.Blocks(theme=theme, css="""
     
 # Mount Gradio app to FastAPI
 if is_running_in_hf_space():
-    app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=True)
+    app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False) # setting to false for now. 
 else:
-    app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False)
+    app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False) 
 
 # Run both servers
 if __name__ == "__main__":
