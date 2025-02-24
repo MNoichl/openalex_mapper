@@ -372,7 +372,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         
         hover_text=[str(row['title']) for ix, row in stacked_df.iterrows()],
         marker_color_array=stacked_df['color'],
-        use_medoids=False, # Switch back once efficient mediod caclulation comes out!
+        use_medoids=True, # Switch back once efficient mediod caclulation comes out!
         width=1000,
         height=1000,
         point_radius_min_pixels=1,
@@ -401,7 +401,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     print(f"Plot created and saved in {time.time() - plot_start:.2f} seconds")
 
     
-   
+   #datamapplot==0.5.1
     # Save additional files if requested
     csv_file_path = static_dir / f"{filename}.csv"
     png_file_path = static_dir / f"{filename}.png"
@@ -429,7 +429,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         
         # Get the 30 most common labels
         unique_labels, counts = np.unique(combined_labels, return_counts=True)
-        top_30_labels = set(unique_labels[np.argsort(counts)[-50:]])
+        top_30_labels = set(unique_labels[np.argsort(counts)[-80:]])
         
         # Replace less common labels with 'Unlabelled'
         combined_labels = np.array(['Unlabelled' if label not in top_30_labels else label for label in combined_labels])
@@ -451,7 +451,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             label_wrap_width=12,
             label_over_points=True,
             dynamic_label_size=True,
-            use_medoids=False, # Switch back once efficient mediod caclulation comes out!
+            use_medoids=True, # Switch back once efficient mediod caclulation comes out!
             point_size=2,
             marker_color_array=colors_base,
             force_matplotlib=True,
@@ -583,7 +583,7 @@ with gr.Blocks(theme=theme, css="""
     
     OpenAlex Mapper is a way of projecting search queries from the amazing OpenAlex database on a background map of randomly sampled papers from OpenAlex, which allows you to easily investigate interdisciplinary connections. OpenAlex Mapper was developed by [Maximilian Noichl](https://maxnoichl.eu) and [Andrea Loettgers](https://unige.academia.edu/AndreaLoettgers) at the [Possible Life project](http://www.possiblelife.eu/).
 
-    To use OpenAlex Mapper, first head over to [OpenAlex](https://openalex.org/) and search for something that interests you. For example, you could search for all the papers that make use of the [Kuramoto model](https://openalex.org/works?page=1&filter=default.search%3A%22Kuramoto%20Model%22), for all the papers that were published by researchers at [Utrecht University in 2019](https://openalex.org/works?page=1&filter=authorships.institutions.lineage%3Ai193662353,publication_year%3A2019), or for all the papers that cite Wittgenstein's [Philosophical Investigations](https://openalex.org/works?page=1&filter=cites%3Aw4251395411). Then you copy the URL to that search query into the OpenAlex search URL box below and click "Run Query." It will download all of these records from OpenAlex and embed them on our interactive map. As the embedding step is a little expensive, computationally, it's often a good idea to play around with smaller samples, before running a larger analysis (see below for a note on sample size and run-time). After a little time, that map will appear and be available for you to interact with and download. You can find more explanations in the FAQs below.
+    To use OpenAlex Mapper, first head over to [OpenAlex](https://openalex.org/) and search for something that interests you. For example, you could search for all the papers that make use of the [Kuramoto model](https://openalex.org/works?page=1&filter=default.search%3A%22Kuramoto%20Model%22), for all the papers that were published by researchers at [Utrecht University in 2019](https://openalex.org/works?page=1&filter=authorships.institutions.lineage%3Ai193662353,publication_year%3A2019), or for all the papers that cite Wittgenstein's [Philosophical Investigations](https://openalex.org/works?page=1&filter=cites%3Aw4251395411). Then you copy the URL to that search query into the OpenAlex search URL box below and click "Run Query." It will download all of these records from OpenAlex and embed them on our interactive map. As the embedding step is a little expensive, computationally, it's often a good idea to play around with smaller samples, before running a larger analysis (see below for a note on sample size and gpu-limits). After a little time, that map will appear and be available for you to interact with and download. You can find more explanations in the FAQs below.
     </div>
     
     """)

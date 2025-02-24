@@ -10,7 +10,7 @@ adapters
 torch
 tqdm
 pyarrow
-datamapplot==0.5.1
+git+https://github.com/TutteInstitute/datamapplot.git
 numba==0.58.1
 umap-learn==0.5.7
 pynndescent==0.5.12
