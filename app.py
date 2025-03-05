@@ -27,7 +27,7 @@ import colormaps
 import matplotlib.colors as mcolors
 from matplotlib.colors import Normalize
 
-
+import random
 
 import opinionated # for fonts
 plt.style.use("opinionated_rc")
@@ -254,15 +254,33 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         
         should_break = False
         for page in query.paginate(per_page=200, n_max=None):
-            for record in page:
-                records.append(record)
-                records_per_query += 1
-                progress(0.1 + (0.2 * len(records) / (total_query_length)), 
-                        desc=f"Getting data from query {i+1}/{len(urls)}...")
-                
-                if reduce_sample_checkbox and sample_reduction_method == "First n samples" and records_per_query >= target_size:
-                    should_break = True
+            # Add retry mechanism for processing each page
+            max_retries = 5
+            base_wait_time = 1  # Starting wait time in seconds
+            exponent = 1.5  # Exponential factor
+            
+            for retry_attempt in range(max_retries):
+                try:
+                    for record in page:
+                        records.append(record)
+                        records_per_query += 1
+                        progress(0.1 + (0.2 * len(records) / (total_query_length)), 
+                                desc=f"Getting data from query {i+1}/{len(urls)}...")
+                        
+                        if reduce_sample_checkbox and sample_reduction_method == "First n samples" and records_per_query >= target_size:
+                            should_break = True
+                            break
+                    # If we get here without an exception, break the retry loop
                     break
+                except Exception as e:
+                    print(f"Error processing page: {e}")
+                    if retry_attempt < max_retries - 1:
+                        wait_time = base_wait_time * (exponent ** retry_attempt) + random.random()
+                        print(f"Retrying in {wait_time:.2f} seconds (attempt {retry_attempt + 1}/{max_retries})...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"Maximum retries reached. Continuing with next page.")
+            
             if should_break:
                 break
         if should_break:
@@ -411,6 +429,8 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         export_df = records_df[['title', 'abstract', 'doi', 'publication_year', 'x', 'y','id','primary_topic']]
         export_df['parsed_field'] =   [get_field(row) for ix, row in export_df.iterrows()]
         export_df['referenced_works'] = [', '.join(x) for x in records_df['referenced_works']]
+        if locally_approximate_publication_date_checkbox:
+            export_df['approximate_publication_year'] = local_years
         export_df.to_csv(csv_file_path, index=False)
         
     if download_png_checkbox:
