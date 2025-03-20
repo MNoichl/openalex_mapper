@@ -579,6 +579,21 @@ theme = gr.themes.Monochrome(
 )
 
 
+# JS to enforce light theme by refreshing the page
+js_light = """
+function refresh() {
+    const url = new URL(window.location);
+
+    if (url.searchParams.get('__theme') !== 'light') {
+        url.searchParams.set('__theme', 'light');
+        window.location.href = url.href;
+    }
+}
+"""
+
+
+
+
 # Gradio interface setup
 with gr.Blocks(theme=theme, css="""
     .gradio-container a {
@@ -594,7 +609,7 @@ with gr.Blocks(theme=theme, css="""
         color: #b23310 !important;
         border-bottom: 3px solid #b23310;  /* Wider underline, only on hover */
     }
-""") as demo:
+""", js=js_light) as demo:
     gr.Markdown("""
     <div style="max-width: 100%; margin: 0 auto;">
     <br>
