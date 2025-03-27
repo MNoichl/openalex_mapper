@@ -83,23 +83,41 @@ def get_field(x):
 def process_records_to_df(records):
     """
     Convert OpenAlex records to a pandas DataFrame with processed fields.
+    Can handle either raw OpenAlex records or an existing DataFrame.
     
     Args:
-    records (list): List of OpenAlex record dictionaries
+    records (list or pd.DataFrame): List of OpenAlex record dictionaries or existing DataFrame
     
     Returns:
     pandas.DataFrame: Processed DataFrame with abstracts, publications, and titles
     """
-    records_df = pd.DataFrame(records)
-    records_df['abstract'] = [invert_abstract(t) for t in records_df['abstract_inverted_index']]
-    records_df['parsed_publication'] = [get_pub(x) for x in records_df['primary_location']]
+    # If records is already a DataFrame, use it directly
+    if isinstance(records, pd.DataFrame):
+        records_df = records.copy()
+        # Only process abstract_inverted_index and primary_location if they exist
+        if 'abstract_inverted_index' in records_df.columns:
+            records_df['abstract'] = [invert_abstract(t) for t in records_df['abstract_inverted_index']]
+        if 'primary_location' in records_df.columns:
+            records_df['parsed_publication'] = [get_pub(x) for x in records_df['primary_location']]
+    else:
+        # Process raw records as before
+        records_df = pd.DataFrame(records)
+        records_df['abstract'] = [invert_abstract(t) for t in records_df['abstract_inverted_index']]
+        records_df['parsed_publication'] = [get_pub(x) for x in records_df['primary_location']]
     
+    # Fill missing values and deduplicate
     records_df['parsed_publication'] = records_df['parsed_publication'].fillna(' ')
     records_df['abstract'] = records_df['abstract'].fillna(' ')
     records_df['title'] = records_df['title'].fillna(' ')
     records_df = records_df.drop_duplicates(subset=['id']).reset_index(drop=True)
     
-    return records_df 
+    return records_df
+
+
+
+
+
+
 
 def openalex_url_to_filename(url):
     """

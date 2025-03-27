@@ -1,14 +1,16 @@
 import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-
+# source openalex_env_map/bin/activate
 # Standard library imports
 import os
 from pathlib import Path
 from datetime import datetime
 from itertools import chain
+import ast  # Add this import at the top with the standard library imports
 
 import base64
 import json
+import pickle
 
 # Third-party imports
 import numpy as np
@@ -169,13 +171,13 @@ else:
     
     
     
-    
-    
+
 
 def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_checkbox, 
            sample_reduction_method, plot_time_checkbox, 
            locally_approximate_publication_date_checkbox, 
            download_csv_checkbox, download_png_checkbox, citation_graph_checkbox, 
+           csv_upload, 
            progress=gr.Progress()):
     """
     Main prediction pipeline that processes OpenAlex queries and creates visualizations.
@@ -188,11 +190,28 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         sample_reduction_method (str): Method for sample reduction ("Random" or "Order of Results")
         plot_time_checkbox (bool): Whether to color points by publication date
         locally_approximate_publication_date_checkbox (bool): Whether to approximate publication date locally before plotting.
+        download_csv_checkbox (bool): Whether to download CSV data
+        download_png_checkbox (bool): Whether to download PNG data
+        citation_graph_checkbox (bool): Whether to add citation graph
+        csv_upload (str): Path to uploaded CSV file
         progress (gr.Progress): Gradio progress tracker
     
     Returns:
         tuple: (link to visualization, iframe HTML)
     """
+    # Initialize start_time at the beginning of the function
+    start_time = time.time()
+    
+    # Helper function to generate error responses
+    def create_error_response(error_message):
+        return [
+            error_message,
+            gr.DownloadButton(label="Download Interactive Visualization", value='html_file_path', visible=False),
+            gr.DownloadButton(label="Download CSV Data", value='csv_file_path', visible=False),
+            gr.DownloadButton(label="Download Static Plot", value='png_file_path', visible=False),
+            gr.Button(visible=False)
+        ]
+    
     # Get the authentication token
     if is_running_in_hf_space():
         token = _get_token(request)
@@ -208,103 +227,145 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         else:
             user_type = "registered"
         print(f"User type: {user_type}")
-   
 
-    # Check if input is empty or whitespace
-    print(f"Input: {text_input}")
-    if not text_input or text_input.isspace():
-        error_message = "Error: Please enter a valid OpenAlex URL in the 'OpenAlex-search URL'-field"
-        return [
-            error_message,  # iframe HTML
-            gr.DownloadButton(label="Download Interactive Visualization", value='html_file_path', visible=False),  # html download
-            gr.DownloadButton(label="Download CSV Data", value='csv_file_path', visible=False),  # csv download
-            gr.DownloadButton(label="Download Static Plot", value='png_file_path', visible=False),  # png download
-            gr.Button(visible=False)  # cancel button state
-        ]
-
-
-    
-    # Check if the input is a valid OpenAlex URL
-
-    
-    
-    start_time = time.time()
-    print('Starting data projection pipeline')
-    progress(0.1, desc="Starting...")
-
-    # Split input into multiple URLs if present
-    urls = [url.strip() for url in text_input.split(';')]
-    records = []
-    total_query_length = 0
-    
-    # Use first URL for filename
-    first_query, first_params = openalex_url_to_pyalex_query(urls[0])
-    filename = openalex_url_to_filename(urls[0])
-    print(f"Filename: {filename}")
-
-    # Process each URL
-    for i, url in enumerate(urls):
-        query, params = openalex_url_to_pyalex_query(url)
-        query_length = query.count()
-        total_query_length += query_length
-        print(f'Requesting {query_length} entries from query {i+1}/{len(urls)}...')
-        
-        target_size = sample_size_slider if reduce_sample_checkbox and sample_reduction_method == "First n samples" else query_length
-        records_per_query = 0
-        
-        should_break = False
-        for page in query.paginate(per_page=200, n_max=None):
-            # Add retry mechanism for processing each page
-            max_retries = 5
-            base_wait_time = 1  # Starting wait time in seconds
-            exponent = 1.5  # Exponential factor
+    # Check if a file has been uploaded or if we need to use OpenAlex query
+    if csv_upload is not None:
+        print(f"Using uploaded file instead of OpenAlex query: {csv_upload}")
+        try:
+            file_extension = os.path.splitext(csv_upload)[1].lower()
             
-            for retry_attempt in range(max_retries):
-                try:
-                    for record in page:
-                        records.append(record)
-                        records_per_query += 1
-                        progress(0.1 + (0.2 * len(records) / (total_query_length)), 
-                                desc=f"Getting data from query {i+1}/{len(urls)}...")
-                        
-                        if reduce_sample_checkbox and sample_reduction_method == "First n samples" and records_per_query >= target_size:
-                            should_break = True
-                            break
-                    # If we get here without an exception, break the retry loop
+            if file_extension == '.csv':
+                # Read the CSV file
+                records_df = pd.read_csv(csv_upload)
+                filename = os.path.splitext(os.path.basename(csv_upload))[0]
+                
+                # Process dictionary-like strings in the DataFrame
+                for column in records_df.columns:
+                    # Check if the column contains dictionary-like strings
+                    if records_df[column].dtype == 'object':
+                        try:
+                            # Use a sample value to check if it looks like a dictionary or list
+                            sample_value = records_df[column].dropna().iloc[0] if not records_df[column].dropna().empty else None
+                            # Add type checking before using startswith
+                            if isinstance(sample_value, str) and (sample_value.startswith('{') or sample_value.startswith('[')):
+                                # Try to convert strings to Python objects using ast.literal_eval
+                                records_df[column] = records_df[column].apply(
+                                    lambda x: ast.literal_eval(x) if isinstance(x, str) and (
+                                        (x.startswith('{') and x.endswith('}')) or
+                                        (x.startswith('[') and x.endswith(']'))
+                                    ) else x
+                                )
+                        except (ValueError, SyntaxError, TypeError) as e:
+                            # If conversion fails, keep as string
+                            print(f"Could not convert column {column} to Python objects: {e}")
+                            
+            elif file_extension == '.pkl':
+                # Read the pickle file
+                with open(csv_upload, 'rb') as f:
+                    records_df = pickle.load(f)
+                filename = os.path.splitext(os.path.basename(csv_upload))[0]
+                
+            else:
+                error_message = f"Error: Unsupported file type. Please upload a CSV or PKL file."
+                return create_error_response(error_message)
+                
+            records_df = process_records_to_df(records_df)
+            
+            # Make sure we have the required columns
+            required_columns = ['title', 'abstract', 'publication_year']
+            missing_columns = [col for col in required_columns if col not in records_df.columns]
+            
+            if missing_columns:
+                error_message = f"Error: Uploaded file is missing required columns: {', '.join(missing_columns)}"
+                return create_error_response(error_message)
+                
+            print(f"Successfully loaded {len(records_df)} records from uploaded file")
+            progress(0.2, desc="Processing uploaded data...")
+            
+        except Exception as e:
+            error_message = f"Error processing uploaded file: {str(e)}"
+            return create_error_response(error_message)
+    else:
+        # Check if input is empty or whitespace
+        print(f"Input: {text_input}")
+        if not text_input or text_input.isspace():
+            error_message = "Error: Please enter a valid OpenAlex URL in the 'OpenAlex-search URL'-field or upload a CSV file"
+            return create_error_response(error_message)
+
+        print('Starting data projection pipeline')
+        progress(0.1, desc="Starting...")
+
+        # Split input into multiple URLs if present
+        urls = [url.strip() for url in text_input.split(';')]
+        records = []
+        total_query_length = 0
+        
+        # Use first URL for filename
+        first_query, first_params = openalex_url_to_pyalex_query(urls[0])
+        filename = openalex_url_to_filename(urls[0])
+        print(f"Filename: {filename}")
+
+        # Process each URL
+        for i, url in enumerate(urls):
+            query, params = openalex_url_to_pyalex_query(url)
+            query_length = query.count()
+            total_query_length += query_length
+            print(f'Requesting {query_length} entries from query {i+1}/{len(urls)}...')
+            
+            target_size = sample_size_slider if reduce_sample_checkbox and sample_reduction_method == "First n samples" else query_length
+            records_per_query = 0
+            
+            should_break = False
+            for page in query.paginate(per_page=200, n_max=None):
+                # Add retry mechanism for processing each page
+                max_retries = 5
+                base_wait_time = 1  # Starting wait time in seconds
+                exponent = 1.5  # Exponential factor
+                
+                for retry_attempt in range(max_retries):
+                    try:
+                        for record in page:
+                            records.append(record)
+                            records_per_query += 1
+                            progress(0.1 + (0.2 * len(records) / (total_query_length)), 
+                                    desc=f"Getting data from query {i+1}/{len(urls)}...")
+                            
+                            if reduce_sample_checkbox and sample_reduction_method == "First n samples" and records_per_query >= target_size:
+                                should_break = True
+                                break
+                        # If we get here without an exception, break the retry loop
+                        break
+                    except Exception as e:
+                        print(f"Error processing page: {e}")
+                        if retry_attempt < max_retries - 1:
+                            wait_time = base_wait_time * (exponent ** retry_attempt) + random.random()
+                            print(f"Retrying in {wait_time:.2f} seconds (attempt {retry_attempt + 1}/{max_retries})...")
+                            time.sleep(wait_time)
+                        else:
+                            print(f"Maximum retries reached. Continuing with next page.")
+                
+                if should_break:
                     break
-                except Exception as e:
-                    print(f"Error processing page: {e}")
-                    if retry_attempt < max_retries - 1:
-                        wait_time = base_wait_time * (exponent ** retry_attempt) + random.random()
-                        print(f"Retrying in {wait_time:.2f} seconds (attempt {retry_attempt + 1}/{max_retries})...")
-                        time.sleep(wait_time)
-                    else:
-                        print(f"Maximum retries reached. Continuing with next page.")
-            
             if should_break:
                 break
-        if should_break:
-            break
-    print(f"Query completed in {time.time() - start_time:.2f} seconds")
+        print(f"Query completed in {time.time() - start_time:.2f} seconds")
 
-    # Process records
-    processing_start = time.time()
-    records_df = process_records_to_df(records)
-    
-    if reduce_sample_checkbox and sample_reduction_method != "All":
-        sample_size = min(sample_size_slider, len(records_df))        
-        if sample_reduction_method == "n random samples":
-            records_df = records_df.sample(sample_size)
-        elif sample_reduction_method == "First n samples":
-            records_df = records_df.iloc[:sample_size]
-    print(f"Records processed in {time.time() - processing_start:.2f} seconds")
-    
-    # Create embeddings
+        # Process records
+        processing_start = time.time()
+        records_df = process_records_to_df(records)
+        
+        if reduce_sample_checkbox and sample_reduction_method != "All":
+            sample_size = min(sample_size_slider, len(records_df))        
+            if sample_reduction_method == "n random samples":
+                records_df = records_df.sample(sample_size)
+            elif sample_reduction_method == "First n samples":
+                records_df = records_df.iloc[:sample_size]
+        print(f"Records processed in {time.time() - processing_start:.2f} seconds")
+
+    # Create embeddings - this happens regardless of data source
     embedding_start = time.time()
     progress(0.3, desc="Embedding Data...")
-    texts_to_embedd = [f"{title} {abstract}" for title, abstract 
-                      in zip(records_df['title'], records_df['abstract'])]
-    
+    texts_to_embedd = [f"{title} {abstract}" for title, abstract in zip(records_df['title'], records_df['abstract'])]
     
     if is_running_in_hf_space():
         if len(texts_to_embedd) < 2000:
@@ -357,13 +418,18 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             norm = mcolors.Normalize(vmin=local_years.min(), vmax=local_years.max())
             records_df['color'] = [mcolors.to_hex(cmap(norm(year))) for year in local_years]
                         
-            
-
     stacked_df = pd.concat([basedata_df, records_df], axis=0, ignore_index=True)
     stacked_df = stacked_df.fillna("Unlabelled")
     stacked_df['parsed_field'] = [get_field(row) for ix, row in stacked_df.iterrows()]
     extra_data = pd.DataFrame(stacked_df['doi'])
     print(f"Visualization data prepared in {time.time() - viz_prep_start:.2f} seconds")
+    
+    # Prepare file paths
+    html_file_name = f"{filename}.html"
+    html_file_path = static_dir / html_file_name
+    csv_file_path = static_dir / f"{filename}.csv"
+    png_file_path = static_dir / f"{filename}.png"
+    
     if citation_graph_checkbox:
         citation_graph_start = time.time()
         citation_graph = create_citation_graph(records_df)
@@ -372,9 +438,6 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         draw_citation_graph(citation_graph,path=graph_file_path,bundle_edges=True,
                             min_max_coordinates=[np.min(stacked_df['x']),np.max(stacked_df['x']),np.min(stacked_df['y']),np.max(stacked_df['y'])])
         print(f"Citation graph created and saved in {time.time() - citation_graph_start:.2f} seconds")
-
-
-    
     
     # Create and save plot
     plot_start = time.time()
@@ -382,10 +445,9 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     # Create a solid black colormap
     black_cmap = mcolors.LinearSegmentedColormap.from_list('black', ['#000000', '#000000'])
     
-    
     plot = datamapplot.create_interactive_plot(
         stacked_df[['x','y']].values,
-                                np.array(stacked_df['cluster_2_labels']),
+        np.array(stacked_df['cluster_2_labels']),
         np.array(['Unlabelled' if pd.isna(x) else x for x in stacked_df['parsed_field']]),
         
         hover_text=[str(row['title']) for ix, row in stacked_df.iterrows()],
@@ -413,23 +475,16 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     )
 
     # Save plot
-    html_file_name = f"{filename}.html"
-    html_file_path = static_dir / html_file_name
     plot.save(html_file_path)
     print(f"Plot created and saved in {time.time() - plot_start:.2f} seconds")
-
     
-   #datamapplot==0.5.1
     # Save additional files if requested
-    csv_file_path = static_dir / f"{filename}.csv"
-    png_file_path = static_dir / f"{filename}.png"
-    
     if download_csv_checkbox:
         # Export relevant column
         export_df = records_df[['title', 'abstract', 'doi', 'publication_year', 'x', 'y','id','primary_topic']]
-        export_df['parsed_field'] =   [get_field(row) for ix, row in export_df.iterrows()]
+        export_df['parsed_field'] = [get_field(row) for ix, row in export_df.iterrows()]
         export_df['referenced_works'] = [', '.join(x) for x in records_df['referenced_works']]
-        if locally_approximate_publication_date_checkbox:
+        if locally_approximate_publication_date_checkbox and plot_time_checkbox:
             export_df['approximate_publication_year'] = local_years
         export_df.to_csv(csv_file_path, index=False)
         
@@ -453,17 +508,10 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         
         # Replace less common labels with 'Unlabelled'
         combined_labels = np.array(['Unlabelled' if label not in top_30_labels else label for label in combined_labels])
-        #combined_labels = np.array(['Unlabelled'  for label in combined_labels])
-        #if label not in top_30_labels else label
         colors_base = ['#536878' for _ in range(len(labels1))]
         print(f"Sample preparation completed in {time.time() - sample_prep_start:.2f} seconds")
 
         # Create main plot
-        print(labels1)
-        print(labels2)
-        print(sample_to_plot[['x','y']].values)
-        print(combined_labels)
-        
         main_plot_start = time.time()
         fig, ax = datamapplot.create_plot(
             sample_to_plot[['x','y']].values,
@@ -487,15 +535,12 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         )
         print(f"Main plot creation completed in {time.time() - main_plot_start:.2f} seconds")
 
-     
         if citation_graph_checkbox:
-
             # Read and add the graph image
             graph_img = plt.imread(graph_file_path)
             ax.imshow(graph_img, extent=[np.min(stacked_df['x']),np.max(stacked_df['x']),np.min(stacked_df['y']),np.max(stacked_df['y'])],
-                      alpha=0.9, aspect='auto')
-            
-            
+                        alpha=0.9, aspect='auto')
+
         if len(records_df) > 50_000:
             point_size = .5
         elif len(records_df) > 10_000:
@@ -539,16 +584,11 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         # Save plot
         save_start = time.time()
         plt.axis('off')
-        png_file_path = static_dir / f"{filename}.png"
         plt.savefig(png_file_path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Plot saving completed in {time.time() - save_start:.2f} seconds")
         
         print(f"Total PNG generation completed in {time.time() - png_start_time:.2f} seconds")
-
-
-
-
 
     progress(1.0, desc="Done!")
     print(f"Total pipeline completed in {time.time() - start_time:.2f} seconds")
@@ -650,10 +690,16 @@ with gr.Blocks(theme=theme, css="""
                 value="First n samples",
                 info="How to choose the samples to keep."
             )
+            
+            if is_running_in_hf_zero_gpu():
+                max_sample_size = 20000
+            else:
+                max_sample_size = 250000
+
             sample_size_slider = gr.Slider(
                 label="Sample Size",
                 minimum=500,
-                maximum=20000,
+                maximum=max_sample_size,
                 step=10,
                 value=1000,
                 info="How many samples to keep.",
@@ -691,6 +737,12 @@ with gr.Blocks(theme=theme, css="""
                 info="Adds a citation graph of the sample to the plot."
             )
             
+            gr.Markdown("### Upload Your Own Data")
+            csv_upload = gr.File(
+                file_count="single",
+                label="Upload your own CSV or Pickle file downloaded via pyalex.", 
+                file_types=[".csv", ".pkl"],
+            )
             
             
         with gr.Column(scale=2):
@@ -706,7 +758,7 @@ with gr.Blocks(theme=theme, css="""
     
     ## Who made this?
 
-    This project was developed by [Maximilian Noichl](https://maxnoichl.eu) (Utrecht University), in cooperation with Andrea Loettger and Tarja Knuuttila at the [Possible Life project](http://www.possiblelife.eu/), at the University of Vienna. If this project is useful in any way for your research, we would appreciate citation of **...**
+    This project was developed by [Maximilian Noichl](https://maxnoichl.eu) (Utrecht University), in cooperation with Andrea Loettgers and Tarja Knuuttila at the [Possible Life project](http://www.possiblelife.eu/), at the University of Vienna. If this project is useful in any way for your research, we would appreciate citation of **...**
 
     This project received funding from the European Research Council under the European Union's Horizon 2020 research and innovation programme (LIFEMODE project, grant agreement No. 818772).
 
@@ -770,7 +822,8 @@ with gr.Blocks(theme=theme, css="""
             locally_approximate_publication_date_checkbox,
             download_csv_checkbox, 
             download_png_checkbox,
-            citation_graph_checkbox
+            citation_graph_checkbox,
+            csv_upload
         ],
         outputs=[html, html_download, csv_download, png_download, cancel_btn]
     )
