@@ -23,6 +23,13 @@ print("Numba threads:", numba.get_num_threads())
 numba.set_num_threads(16)
 print("Updated Numba threads:", numba.get_num_threads())
 
+import datamapplot.medoids
+
+
+print(help(datamapplot.medoids))
+
+
+
 from pathlib import Path
 from datetime import datetime
 from itertools import chain
