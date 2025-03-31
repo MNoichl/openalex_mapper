@@ -1,8 +1,6 @@
-setuptools==77.0.3
-datamapplot @ git+https://github.com/TutteInstitute/datamapplot.git@cda9fa5e86714a7937130c31ee04fa63f23317a5
+datamapplot @ git+https://github.com/TutteInstitute/datamapplot.git@main
 uvicorn
 fastapi
-gradio==5.16.1
 numpy
 requests
 pyalex

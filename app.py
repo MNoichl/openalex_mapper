@@ -20,14 +20,17 @@ import gradio as gr
 
 print(f"Gradio version: {gr.__version__}")
 
-import importlib.metadata
+import subprocess
 
-try:
-    version_metadata = importlib.metadata.version("datamapplot")
-    print("datamapplot version via importlib.metadata:", version_metadata)
-except Exception as e:
-    print("Could not obtain version via importlib.metadata:", e)
+def print_datamapplot_version():
+    try:
+        # On Unix systems, you can pipe commands by setting shell=True.
+        version = subprocess.check_output("pip freeze | grep datamapplot", shell=True, text=True)
+        print("datamapplot version:", version.strip())
+    except subprocess.CalledProcessError:
+        print("datamapplot not found in pip freeze output.")
 
+print_datamapplot_version()
 
 
 
