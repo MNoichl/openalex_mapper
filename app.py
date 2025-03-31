@@ -17,6 +17,8 @@ os.environ["MPLCONFIGDIR"] = os.path.abspath("./mpl_cache")
 os.makedirs("./transformers_cache", exist_ok=True)
 os.environ["TRANSFORMERS_CACHE"] = os.path.abspath("./transformers_cache")
 
+import numba
+print(numba.config)
 
 
 from pathlib import Path
