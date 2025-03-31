@@ -8,25 +8,25 @@ import os
 #Enforce local cching:
 # os.makedirs("./pip_cache", exist_ok=True)
 # Pip:
-os.makedirs("./pip_cache", exist_ok=True)
-os.environ["PIP_CACHE_DIR"] = os.path.abspath("./pip_cache")
-# MPL:
-os.makedirs("./mpl_cache", exist_ok=True)
-os.environ["MPLCONFIGDIR"] = os.path.abspath("./mpl_cache")
-#Transformers
-os.makedirs("./transformers_cache", exist_ok=True)
-os.environ["TRANSFORMERS_CACHE"] = os.path.abspath("./transformers_cache")
+# os.makedirs("./pip_cache", exist_ok=True)
+# os.environ["PIP_CACHE_DIR"] = os.path.abspath("./pip_cache")
+# # MPL:
+# os.makedirs("./mpl_cache", exist_ok=True)
+# os.environ["MPLCONFIGDIR"] = os.path.abspath("./mpl_cache")
+# #Transformers
+# os.makedirs("./transformers_cache", exist_ok=True)
+# os.environ["TRANSFORMERS_CACHE"] = os.path.abspath("./transformers_cache")
 
-import numba
-print(numba.config)
-print("Numba threads:", numba.get_num_threads())
-numba.set_num_threads(16)
-print("Updated Numba threads:", numba.get_num_threads())
+# import numba
+# print(numba.config)
+# print("Numba threads:", numba.get_num_threads())
+# numba.set_num_threads(16)
+# print("Updated Numba threads:", numba.get_num_threads())
 
-import datamapplot.medoids
+# import datamapplot.medoids
 
 
-print(help(datamapplot.medoids))
+# print(help(datamapplot.medoids))
 
 
 
