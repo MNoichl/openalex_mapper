@@ -20,6 +20,17 @@ import gradio as gr
 
 print(f"Gradio version: {gr.__version__}")
 
+import importlib.metadata
+
+try:
+    version_metadata = importlib.metadata.version("datamapplot")
+    print("datamapplot version via importlib.metadata:", version_metadata)
+except Exception as e:
+    print("Could not obtain version via importlib.metadata:", e)
+
+
+
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn
