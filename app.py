@@ -20,6 +20,8 @@ os.environ["TRANSFORMERS_CACHE"] = os.path.abspath("./transformers_cache")
 import numba
 print(numba.config)
 print("Numba threads:", numba.get_num_threads())
+numba.set_num_threads(16)
+print("Updated Numba threads:", numba.get_num_threads())
 
 from pathlib import Path
 from datetime import datetime
