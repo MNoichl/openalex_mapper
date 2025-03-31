@@ -2,7 +2,23 @@ import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 # source openalex_env_map/bin/activate
 # Standard library imports
+
 import os
+
+#Enforce local cching:
+# os.makedirs("./pip_cache", exist_ok=True)
+# Pip:
+os.makedirs("./pip_cache", exist_ok=True)
+os.environ["PIP_CACHE_DIR"] = os.path.abspath("./pip_cache")
+# MPL:
+os.makedirs("./mpl_cache", exist_ok=True)
+os.environ["MPLCONFIGDIR"] = os.path.abspath("./mpl_cache")
+#Transformers
+os.makedirs("./transformers_cache", exist_ok=True)
+os.environ["TRANSFORMERS_CACHE"] = os.path.abspath("./transformers_cache")
+
+
+
 from pathlib import Path
 from datetime import datetime
 from itertools import chain
