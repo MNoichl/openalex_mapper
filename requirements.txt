@@ -1,4 +1,4 @@
-datamapplot @ git+https://github.com/TutteInstitute/datamapplot.git@cda9fa5
+datamapplot @ git+https://github.com/MNoichl/datamapplot.git@main
 uvicorn
 fastapi
 numpy
