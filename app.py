@@ -802,7 +802,7 @@ with gr.Blocks(theme=theme, css="""
     This project was developed by [Maximilian Noichl](https://maxnoichl.eu) (Utrecht University), in cooperation with Andrea Loettgers and Tarja Knuuttila at the [Possible Life project](http://www.possiblelife.eu/), at the University of Vienna. If this project is useful in any way for your research, we would appreciate citation of:
      Noichl, M., Loettgers, A., Knuuttila, T. (2025).[Philosophy at Scale: Introducing OpenAlex Mapper](https://maxnoichl.eu/full/talks/talk_BERLIN_April_2025/working_paper.pdf). *Working Paper*.
 
-    This project received funding from the European Research Council under the European Union's Horizon 2020 research and innovation programme (LIFEMODE project, grant agreement No. 818772).
+    This project received funding from the European Research Council under the European Union's Horizon 2020 research and innovation programme (LIFEMODE project, grant agreement No. 818772). 
 
     ## How does it work?
 
