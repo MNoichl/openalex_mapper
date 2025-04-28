@@ -524,7 +524,8 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         # Export relevant column
         export_df = records_df[['title', 'abstract', 'doi', 'publication_year', 'x', 'y','id','primary_topic']]
         export_df['parsed_field'] = [get_field(row) for ix, row in export_df.iterrows()]
-        export_df['referenced_works'] = [', '.join(x) for x in records_df['referenced_works']]
+        export_df['referenced_works'] = [x if isinstance(x, str) else ', '.join(x) if isinstance(x, (list, tuple)) and not pd.isna(x) else '' for x in records_df['referenced_works']]
+        
         if locally_approximate_publication_date_checkbox and plot_time_checkbox:
             export_df['approximate_publication_year'] = local_years
         export_df.to_csv(csv_file_path, index=False)

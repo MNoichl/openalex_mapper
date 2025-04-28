@@ -99,14 +99,17 @@ def process_records_to_df(records):
             records_df['abstract'] = [invert_abstract(t) for t in records_df['abstract_inverted_index']]
         if 'primary_location' in records_df.columns:
             records_df['parsed_publication'] = [get_pub(x) for x in records_df['primary_location']]
+            records_df['parsed_publication'] = records_df['parsed_publication'].fillna(' ') # fill missing values with space, only if we have them.
+        
     else:
         # Process raw records as before
         records_df = pd.DataFrame(records)
         records_df['abstract'] = [invert_abstract(t) for t in records_df['abstract_inverted_index']]
         records_df['parsed_publication'] = [get_pub(x) for x in records_df['primary_location']]
+        records_df['parsed_publication'] = records_df['parsed_publication'].fillna(' ')
     
     # Fill missing values and deduplicate
-    records_df['parsed_publication'] = records_df['parsed_publication'].fillna(' ')
+    
     records_df['abstract'] = records_df['abstract'].fillna(' ')
     records_df['title'] = records_df['title'].fillna(' ')
     records_df = records_df.drop_duplicates(subset=['id']).reset_index(drop=True)
