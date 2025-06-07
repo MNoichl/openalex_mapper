@@ -188,6 +188,7 @@ def no_op_decorator(func):
 
 
 if is_running_in_hf_space():
+    print("Running in HF Space")
     @spaces.GPU(duration=30)
     def create_embeddings_30(texts_to_embedd):
         """Create embeddings for the input texts using the loaded model."""
@@ -210,6 +211,7 @@ if is_running_in_hf_space():
     
 
 else:
+    print("Running locally")
     def create_embeddings(texts_to_embedd):
         """Create embeddings for the input texts using the loaded model."""
         return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
