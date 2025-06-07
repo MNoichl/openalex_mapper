@@ -7,7 +7,7 @@ pyalex
 compress-pickle
 transformers
 adapters
-torch==2.0.*
+torch==2.0.0
 tqdm
 pyarrow
 numba==0.58.1
