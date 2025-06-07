@@ -21,6 +21,8 @@ env/
 .env/
 .venv/
 openalex_env_map/
+.venv_clean/
+
 
 # Ignore IDE specific files
 .idea/
