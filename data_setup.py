@@ -1,6 +1,7 @@
 import pickle
 import requests
-import umap
+#import umap
+import umap.umap_ as umap 
 from numba.typed import List
 import torch
 from sentence_transformers import SentenceTransformer

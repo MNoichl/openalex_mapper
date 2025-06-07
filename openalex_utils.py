@@ -2,6 +2,7 @@ import numpy as np
 from urllib.parse import urlparse, parse_qs
 from pyalex import Works
 import pandas as pd
+import ast, json
 
 def openalex_url_to_pyalex_query(url):
     """
@@ -51,12 +52,25 @@ def openalex_url_to_pyalex_query(url):
     return query, params
 
 def invert_abstract(inv_index):
-    """Reconstruct abstract from inverted index."""
-    if inv_index is not None:
+    """Reconstruct abstract from OpenAlex' inverted-index.
+
+    Handles dicts, JSON / repr strings, or missing values gracefully.
+    """
+    # Try to coerce a string into a Python object first
+    if isinstance(inv_index, str):
+        try:
+            inv_index = json.loads(inv_index)          # double-quoted JSON
+        except Exception:
+            try:
+                inv_index = ast.literal_eval(inv_index)  # single-quoted repr
+            except Exception:
+                inv_index = None
+
+    if isinstance(inv_index, dict):
         l_inv = [(w, p) for w, pos in inv_index.items() for p in pos]
-        return " ".join(map(lambda x: x[0], sorted(l_inv, key=lambda x: x[1])))
+        return " ".join(w for w, _ in sorted(l_inv, key=lambda x: x[1]))
     else:
-        return ' '
+        return " "                                     # fallback
 
 def get_pub(x):
     """Extract publication name from record."""
