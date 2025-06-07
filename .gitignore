@@ -40,3 +40,6 @@ openalex_env_map/
 # Ignore generated files
 static/
 *.log
+
+app_save_copy.py
+app_2.py
