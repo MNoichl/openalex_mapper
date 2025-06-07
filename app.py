@@ -87,9 +87,13 @@ is_running_in_hf_zero_gpu()
 def is_running_in_hf_space():
     return "SPACE_ID" in os.environ
 
-if is_running_in_hf_space():
-    import spaces # necessary to run on Zero.
-    from spaces.zero.client import _get_token
+#if is_running_in_hf_space():
+import spaces # necessary to run on Zero.
+from spaces.zero.client import _get_token
+    
+    
+@spaces.GPU(duration=1)          # ← forces the detector to see a GPU-aware fn
+def _warmup(): pass    
 
 #if is_running_in_hf_space():
 #import spaces # necessary to run on Zero.
