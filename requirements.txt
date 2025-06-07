@@ -8,6 +8,7 @@ compress-pickle
 transformers
 adapters
 tqdm
+torch==2.1.2
 pyarrow
 numba==0.58.1
 umap-learn==0.5.7
