@@ -440,6 +440,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     
     basedata_df['color'] = '#ced4d211'
     
+    
     if not plot_time_checkbox:
         records_df['color'] = '#5e2784'
     else:
