@@ -93,7 +93,10 @@ from spaces.zero.client import _get_token
     
     
 @spaces.GPU(duration=1)          # ← forces the detector to see a GPU-aware fn
-def _warmup(): pass    
+def _warmup(): 
+    print("Warming up...")
+
+_warmup()
 
 @spaces.GPU(duration=30)
 def create_embeddings_30(texts_to_embedd):
