@@ -1,4 +1,3 @@
-#import spaces #
 import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 # source openalex_env_map/bin/activate
@@ -88,28 +87,9 @@ is_running_in_hf_zero_gpu()
 def is_running_in_hf_space():
     return "SPACE_ID" in os.environ
 
-# #if is_running_in_hf_space():
-# from spaces.zero.client import _get_token
-    
-    
-try:
-    import spaces
+if is_running_in_hf_space():
+    import spaces # necessary to run on Zero.
     from spaces.zero.client import _get_token
-    HAS_SPACES = True
-except (ImportError, ModuleNotFoundError):
-    HAS_SPACES = False
-
-# Provide a harmless fallback so decorators don’t explode
-if not HAS_SPACES:
-    class _Dummy:
-        def GPU(self, *a, **k):
-            def deco(f):  # no-op decorator
-                return f
-            return deco
-    spaces = _Dummy()          # fake module object
-    def _get_token(request):   # stub, never called off-Space
-        return ""
-
 
 #if is_running_in_hf_space():
 #import spaces # necessary to run on Zero.
@@ -180,10 +160,10 @@ MODEL_NAME = "m7n/discipline-tuned_specter_2_024"
 start_time = time.time()
 print("Initializing resources...")
 
-download_required_files(REQUIRED_FILES)
-basedata_df = setup_basemap_data(BASEMAP_PATH)
-mapper = setup_mapper(MAPPER_PARAMS_PATH)
-model = setup_embedding_model(MODEL_NAME)
+#download_required_files(REQUIRED_FILES)
+#basedata_df = setup_basemap_data(BASEMAP_PATH)
+#mapper = setup_mapper(MAPPER_PARAMS_PATH)
+#model = setup_embedding_model(MODEL_NAME)
 
 print(f"Resources initialized in {time.time() - start_time:.2f} seconds")
 
@@ -201,14 +181,15 @@ def no_op_decorator(func):
 # decorator_to_use = spaces.GPU() if is_running_in_hf_space() else no_op_decorator
 # #duration=120
 
+
 @spaces.GPU(duration=1)          # ← forces the detector to see a GPU-aware fn
 def _warmup(): 
     print("Warming up...")
 
+
+
 _warmup()
 
-
-# if is_running_in_hf_space():
 @spaces.GPU(duration=30)
 def create_embeddings_30(texts_to_embedd):
     """Create embeddings for the input texts using the loaded model."""
@@ -217,7 +198,7 @@ def create_embeddings_30(texts_to_embedd):
 @spaces.GPU(duration=59)
 def create_embeddings_59(texts_to_embedd):
     """Create embeddings for the input texts using the loaded model."""
-    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)#
 
 @spaces.GPU(duration=120)
 def create_embeddings_120(texts_to_embedd):
@@ -230,10 +211,10 @@ def create_embeddings_299(texts_to_embedd):
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
     
 
-# else:
-#     def create_embeddings(texts_to_embedd):
-#         """Create embeddings for the input texts using the loaded model."""
-#         return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+#else:
+#    def create_embeddings(texts_to_embedd):
+#        """Create embeddings for the input texts using the loaded model."""
+#        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
     
     
     
@@ -920,6 +901,12 @@ with gr.Blocks(theme=theme, css="""
 #     demo.launch(server_name="0.0.0.0", server_port=7860, share=True,allowed_paths=["/static"])
     
 # Mount Gradio app to FastAPI
+
+
+
+
+
+
 if is_running_in_hf_space():
     app = gr.mount_gradio_app(app, demo, path="/",ssr_mode=False) # setting to false for now. 
 else:
