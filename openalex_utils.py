@@ -70,8 +70,9 @@ def invert_abstract(inv_index):
         l_inv = [(w, p) for w, pos in inv_index.items() for p in pos]
         return " ".join(w for w, _ in sorted(l_inv, key=lambda x: x[1]))
     else:
-        return " "                                     # fallback
-
+        return " "  
+    
+    
 def get_pub(x):
     """Extract publication name from record."""
     try: 

@@ -306,31 +306,25 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 records_df = pd.read_csv(csv_upload)
                 filename = os.path.splitext(os.path.basename(csv_upload))[0]
                 
-                # Process dictionary-like strings in the DataFrame
-                for column in records_df.columns:
-                    # Check if the column contains dictionary-like strings
-                    if records_df[column].dtype == 'object':
-                        try:
-                            # Use a sample value to check if it looks like a dictionary or list
-                            sample_value = records_df[column].dropna().iloc[0] if not records_df[column].dropna().empty else None
-                            # Add type checking before using startswith
-                            if isinstance(sample_value, str) and (sample_value.startswith('{') or sample_value.startswith('[')):
-                                # Try to convert strings to Python objects using ast.literal_eval
-                                records_df[column] = records_df[column].apply(
-                                    lambda x: ast.literal_eval(x) if isinstance(x, str) and (
-                                        (x.startswith('{') and x.endswith('}')) or
-                                        (x.startswith('[') and x.endswith(']'))
-                                    ) else x
-                                )
-                        except (ValueError, SyntaxError, TypeError) as e:
-                            # If conversion fails, keep as string
-                            print(f"Could not convert column {column} to Python objects: {e}")
-                            
-            elif file_extension == '.pkl':
-                # Read the pickle file
-                with open(csv_upload, 'rb') as f:
-                    records_df = pickle.load(f)
-                filename = os.path.splitext(os.path.basename(csv_upload))[0]
+                # Convert *every* cell that looks like a serialized list/dict
+                def _try_parse_obj(cell):
+                    if isinstance(cell, str):
+                        txt = cell.strip()
+                        if (txt.startswith('{') and txt.endswith('}')) or (txt.startswith('[') and txt.endswith(']')):
+                            # Try JSON first
+                            try:
+                                return json.loads(txt)
+                            except Exception:
+                                pass
+                            # Fallback to Python-repr (single quotes etc.)
+                            try:
+                                return ast.literal_eval(txt)
+                            except Exception:
+                                pass
+                    return cell
+
+                records_df = records_df.map(_try_parse_obj)
+                print(records_df.head())
                 
             else:
                 error_message = f"Error: Unsupported file type. Please upload a CSV or PKL file."
@@ -807,9 +801,11 @@ with gr.Blocks(theme=theme, css="""
             gr.Markdown("### Upload Your Own Data")
             csv_upload = gr.File(
                 file_count="single",
-                label="Upload your own CSV or Pickle file downloaded via pyalex.", 
-                file_types=[".csv", ".pkl"],
+                label="Upload your own CSV file downloaded via pyalex.", 
+                file_types=[".csv"],
             )
+            
+
             
             
         with gr.Column(scale=2):
@@ -851,6 +847,10 @@ with gr.Blocks(theme=theme, css="""
     2. When pressing down a really high-dimensional space into a low-dimensional one, there will be trade-offs. For example, we see this big ring structure of the sciences on the map, but in the middle of the map there is a overly stretchedstring of bioinformaticsthat stretches from computer science at the bottom up to the life sciences clusters at the top. This is one of the areas where the UMAP algorithm had trouble pressing our high-dimensional dataset into a low-dimensional space. For more information on how to read a UMAP plot, I recommend looking into ["Understanding UMAP"](https://pair-code.github.io/understanding-umap/) by Andy Coenen & Adam Pearce.
     
     3. Finally, the labels we're using for the regions of this plot are created from OpenAlex's own labels of sub-disciplines. They give a rough indication of the papers that could be expected in this broad area of the map, but they are not necessarily the perfect label for the articles that are precisely below them. They are just located at the median point of a usually much larger, much broader, and fuzzier category, so they should always be taken with quite a big grain of salt.
+    
+    ## I want to use my own data!
+    
+    Sure! You can upload csv-files produced by downloading things from OpenAlex using the pyalex package. You will need to provide at least the columns `id`, `title`, `publication_year`, `doi`, `abstract` or `abstract_inverted_index`, `referenced_works` and `primary_topic`.
     
     </div>
     """)
