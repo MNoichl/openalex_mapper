@@ -92,16 +92,7 @@ def is_running_in_hf_space():
 from spaces.zero.client import _get_token
     
     
-@spaces.GPU(duration=1)          # ← forces the detector to see a GPU-aware fn
-def _warmup(): 
-    print("Warming up...")
 
-_warmup()
-
-@spaces.GPU(duration=30)
-def create_embeddings_30(texts_to_embedd):
-    """Create embeddings for the input texts using the loaded model."""
-    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
 
 
 #if is_running_in_hf_space():
@@ -194,33 +185,39 @@ def no_op_decorator(func):
 # decorator_to_use = spaces.GPU() if is_running_in_hf_space() else no_op_decorator
 # #duration=120
 
+@spaces.GPU(duration=1)          # ← forces the detector to see a GPU-aware fn
+def _warmup(): 
+    print("Warming up...")
 
-if is_running_in_hf_space():
-    @spaces.GPU(duration=30)
-    def create_embeddings_30(texts_to_embedd):
-        """Create embeddings for the input texts using the loaded model."""
-        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
-    
-    @spaces.GPU(duration=59)
-    def create_embeddings_59(texts_to_embedd):
-        """Create embeddings for the input texts using the loaded model."""
-        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
-    
-    @spaces.GPU(duration=120)
-    def create_embeddings_120(texts_to_embedd):
-        """Create embeddings for the input texts using the loaded model."""
-        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
-    
-    @spaces.GPU(duration=299)
-    def create_embeddings_299(texts_to_embedd):
-        """Create embeddings for the input texts using the loaded model."""
-        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+_warmup()
+
+
+# if is_running_in_hf_space():
+@spaces.GPU(duration=30)
+def create_embeddings_30(texts_to_embedd):
+    """Create embeddings for the input texts using the loaded model."""
+    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+
+@spaces.GPU(duration=59)
+def create_embeddings_59(texts_to_embedd):
+    """Create embeddings for the input texts using the loaded model."""
+    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+
+@spaces.GPU(duration=120)
+def create_embeddings_120(texts_to_embedd):
+    """Create embeddings for the input texts using the loaded model."""
+    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+
+@spaces.GPU(duration=299)
+def create_embeddings_299(texts_to_embedd):
+    """Create embeddings for the input texts using the loaded model."""
+    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
     
 
-else:
-    def create_embeddings(texts_to_embedd):
-        """Create embeddings for the input texts using the loaded model."""
-        return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+# else:
+#     def create_embeddings(texts_to_embedd):
+#         """Create embeddings for the input texts using the loaded model."""
+#         return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
     
     
     
