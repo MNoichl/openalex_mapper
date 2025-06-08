@@ -89,7 +89,6 @@ def is_running_in_hf_space():
     return "SPACE_ID" in os.environ
 
 #if is_running_in_hf_space():
-import spaces # necessary to run on Zero.
 from spaces.zero.client import _get_token
     
     
