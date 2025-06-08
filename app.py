@@ -1,3 +1,4 @@
+import spaces #
 import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 # source openalex_env_map/bin/activate
@@ -94,6 +95,12 @@ from spaces.zero.client import _get_token
     
 @spaces.GPU(duration=1)          # ← forces the detector to see a GPU-aware fn
 def _warmup(): pass    
+
+@spaces.GPU(duration=30)
+def create_embeddings_30(texts_to_embedd):
+    """Create embeddings for the input texts using the loaded model."""
+    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+
 
 #if is_running_in_hf_space():
 #import spaces # necessary to run on Zero.
