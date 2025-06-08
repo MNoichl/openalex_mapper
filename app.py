@@ -1,4 +1,4 @@
-import spaces #
+#import spaces #
 import time
 print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 # source openalex_env_map/bin/activate
@@ -88,11 +88,27 @@ is_running_in_hf_zero_gpu()
 def is_running_in_hf_space():
     return "SPACE_ID" in os.environ
 
-#if is_running_in_hf_space():
-from spaces.zero.client import _get_token
+# #if is_running_in_hf_space():
+# from spaces.zero.client import _get_token
     
     
+try:
+    import spaces
+    from spaces.zero.client import _get_token
+    HAS_SPACES = True
+except (ImportError, ModuleNotFoundError):
+    HAS_SPACES = False
 
+# Provide a harmless fallback so decorators don’t explode
+if not HAS_SPACES:
+    class _Dummy:
+        def GPU(self, *a, **k):
+            def deco(f):  # no-op decorator
+                return f
+            return deco
+    spaces = _Dummy()          # fake module object
+    def _get_token(request):   # stub, never called off-Space
+        return ""
 
 
 #if is_running_in_hf_space():
