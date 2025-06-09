@@ -131,12 +131,6 @@ def process_records_to_df(records):
     
     return records_df
 
-
-
-
-
-
-
 def openalex_url_to_filename(url):
     """
     Convert an OpenAlex URL to a filename-safe string with timestamp.
@@ -198,3 +192,25 @@ def openalex_url_to_filename(url):
         filename = filename[:251]  # leave room for potential extension
     
     return filename
+
+def get_records_from_dois(doi_list, block_size=50):
+    """
+    Download OpenAlex records for a list of DOIs in blocks.
+    Args:
+        doi_list (list): List of DOIs (strings)
+        block_size (int): Number of DOIs to fetch per request (default 50)
+    Returns:
+        pd.DataFrame: DataFrame of OpenAlex records
+    """
+    from pyalex import Works
+    from tqdm import tqdm
+    all_records = []
+    for i in tqdm(range(0, len(doi_list), block_size)):
+        sublist = doi_list[i:i+block_size]
+        doi_str = "|".join(sublist)
+        try:
+            record_list = Works().filter(doi=doi_str).get(per_page=block_size)
+            all_records.extend(record_list)
+        except Exception as e:
+            print(f"Error fetching DOIs {sublist}: {e}")
+    return pd.DataFrame(all_records)

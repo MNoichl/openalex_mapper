@@ -51,6 +51,8 @@ import gradio as gr
 print(f"Gradio version: {gr.__version__}")
 
 import subprocess
+import re
+from color_utils import rgba_to_hex
 
 def print_datamapplot_version():
     try:
@@ -101,7 +103,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAS_SPACES = False
 
-# Provide a harmless fallback so decorators don’t explode
+# Provide a harmless fallback so decorators don't explode
 if not HAS_SPACES:
     class _Dummy:
         def GPU(self, *a, **k):
@@ -125,7 +127,8 @@ from openalex_utils import (
     openalex_url_to_pyalex_query, 
     get_field,
     process_records_to_df,
-    openalex_url_to_filename
+    openalex_url_to_filename,
+    get_records_from_dois
 )
 from styles import DATAMAP_CUSTOM_CSS
 from data_setup import (
@@ -234,10 +237,10 @@ def create_embeddings_299(texts_to_embedd):
     
 
 # else:
-#     def create_embeddings(texts_to_embedd):
-#         """Create embeddings for the input texts using the loaded model."""
-#         return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
-    
+def create_embeddings(texts_to_embedd):
+    """Create embeddings for the input texts using the loaded model."""
+    return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
+
     
     
     
@@ -247,7 +250,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
            sample_reduction_method, plot_time_checkbox, 
            locally_approximate_publication_date_checkbox, 
            download_csv_checkbox, download_png_checkbox, citation_graph_checkbox, 
-           csv_upload, 
+           csv_upload, highlight_color, 
            progress=gr.Progress()):
     """
     Main prediction pipeline that processes OpenAlex queries and creates visualizations.
@@ -264,6 +267,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         download_png_checkbox (bool): Whether to download PNG data
         citation_graph_checkbox (bool): Whether to add citation graph
         csv_upload (str): Path to uploaded CSV file
+        highlight_color (str): Color for highlighting points
         progress (gr.Progress): Gradio progress tracker
     
     Returns:
@@ -309,25 +313,33 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 records_df = pd.read_csv(csv_upload)
                 filename = os.path.splitext(os.path.basename(csv_upload))[0]
                 
-                # Convert *every* cell that looks like a serialized list/dict
-                def _try_parse_obj(cell):
-                    if isinstance(cell, str):
-                        txt = cell.strip()
-                        if (txt.startswith('{') and txt.endswith('}')) or (txt.startswith('[') and txt.endswith(']')):
-                            # Try JSON first
-                            try:
-                                return json.loads(txt)
-                            except Exception:
-                                pass
-                            # Fallback to Python-repr (single quotes etc.)
-                            try:
-                                return ast.literal_eval(txt)
-                            except Exception:
-                                pass
-                    return cell
+                # Check if this is a DOI-list CSV (single column, named 'doi' or similar)
+                if (len(records_df.columns) == 1 and records_df.columns[0].lower() in ['doi', 'dois']):
+                    from openalex_utils import get_records_from_dois
+                    doi_list = records_df.iloc[:,0].dropna().astype(str).tolist()
+                    print(f"Detected DOI list with {len(doi_list)} DOIs. Downloading records from OpenAlex...")
+                    records_df = get_records_from_dois(doi_list)
+                    filename = f"doilist_{len(doi_list)}"
+                else:
+                    # Convert *every* cell that looks like a serialized list/dict
+                    def _try_parse_obj(cell):
+                        if isinstance(cell, str):
+                            txt = cell.strip()
+                            if (txt.startswith('{') and txt.endswith('}')) or (txt.startswith('[') and txt.endswith(']')):
+                                # Try JSON first
+                                try:
+                                    return json.loads(txt)
+                                except Exception:
+                                    pass
+                                # Fallback to Python-repr (single quotes etc.)
+                                try:
+                                    return ast.literal_eval(txt)
+                                except Exception:
+                                    pass
+                        return cell
 
-                records_df = records_df.map(_try_parse_obj)
-                print(records_df.head())
+                    records_df = records_df.map(_try_parse_obj)
+                    print(records_df.head())
                 
             else:
                 error_message = f"Error: Unsupported file type. Please upload a CSV or PKL file."
@@ -458,8 +470,10 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     
     basedata_df['color'] = '#ced4d211'
     
+    highlight_color = rgba_to_hex(highlight_color)
+    
     if not plot_time_checkbox:
-        records_df['color'] = '#5e2784'
+        records_df['color'] = highlight_color
     else:
         cmap = colormaps.haline
         if not locally_approximate_publication_date_checkbox:
@@ -521,7 +535,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         height=1000,
         point_radius_min_pixels=1,
         text_outline_width=5,
-        point_hover_color='#5e2784',
+        point_hover_color=highlight_color,
         point_radius_max_pixels=7,
         cmap=black_cmap,
         background_image=graph_file_name if citation_graph_checkbox else None,
@@ -807,9 +821,14 @@ with gr.Blocks(theme=theme, css="""
                 label="Upload your own CSV file downloaded via pyalex.", 
                 file_types=[".csv"],
             )
-            
 
-            
+            # --- Aesthetics Accordion ---
+            with gr.Accordion("Aesthetics", open=False):
+                highlight_color_picker = gr.ColorPicker(
+                    label="Highlight Color",
+                    value="#5e2784",
+                    info="Choose the highlight color for your query points."
+                )
             
         with gr.Column(scale=2):
             html = gr.HTML(
@@ -853,7 +872,7 @@ with gr.Blocks(theme=theme, css="""
     
     ## I want to use my own data!
     
-    Sure! You can upload csv-files produced by downloading things from OpenAlex using the pyalex package. You will need to provide at least the columns `id`, `title`, `publication_year`, `doi`, `abstract` or `abstract_inverted_index`, `referenced_works` and `primary_topic`.
+    Sure! You can upload csv-files produced by downloading records from OpenAlex using the pyalex package. You will need to provide at least the columns `id`, `title`, `publication_year`, `doi`, `abstract` or `abstract_inverted_index`, `referenced_works` and `primary_topic`. Alternatively, you can upload a csv-file with only the column `doi`, containing a column of DOIs. These will then be used to download the records from OpenAlex and then embed them on the map.
     
     </div>
     """)
@@ -894,7 +913,8 @@ with gr.Blocks(theme=theme, css="""
             download_csv_checkbox, 
             download_png_checkbox,
             citation_graph_checkbox,
-            csv_upload
+            csv_upload,
+            highlight_color_picker
         ],
         outputs=[html, html_download, csv_download, png_download, cancel_btn]
     )
