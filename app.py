@@ -128,8 +128,10 @@ from openalex_utils import (
     get_field,
     process_records_to_df,
     openalex_url_to_filename,
-    get_records_from_dois
+    get_records_from_dois,
+    openalex_url_to_readable_name
 )
+from ui_utils import highlight_queries
 from styles import DATAMAP_CUSTOM_CSS
 from data_setup import (
     download_required_files,
@@ -141,7 +143,8 @@ from data_setup import (
 
 from network_utils import create_citation_graph, draw_citation_graph
 
-
+# Add colormap chooser imports
+from colormap_chooser import ColormapChooser, setup_colormaps
 
 
 # Configure OpenAlex
@@ -149,6 +152,26 @@ pyalex.config.email = "maximilian.noichl@uni-bamberg.de"
 
 print(f"Imports completed: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
+# Set up colormaps for the chooser
+print("Setting up colormaps...")
+colormap_categories = setup_colormaps(
+    included_collections=['matplotlib', 'cmocean', 'scientific', 'cmasher'],
+    excluded_collections=['colorcet', 'carbonplan', 'sciviz']
+)
+
+colormap_chooser = ColormapChooser(
+    categories=colormap_categories,
+    smooth_steps=10,
+    strip_width=200,
+    strip_height=50,
+    css_height=200,
+    # show_search=False,
+    # show_category=False,
+    # show_preview=False,
+    # show_selected_name=True,
+    # show_selected_info=False,
+    gallery_kwargs=dict(columns=3, allow_preview=False, height="200px")
+)
 
 
 # Create a static directory to store the dynamic HTML files
@@ -236,21 +259,65 @@ def create_embeddings_299(texts_to_embedd):
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
     
 
+
 # else:
 def create_embeddings(texts_to_embedd):
     """Create embeddings for the input texts using the loaded model."""
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
 
     
+def highlight_queries(text: str) -> str:
+    """Split OpenAlex URLs on semicolons and display them as colored pills with readable names."""
+    palette = [
+        "#e8f4fd", "#fff2e8", "#f0f9e8", "#fdf2f8",
+        "#f3e8ff", "#e8f8f5", "#fef7e8", "#f8f0e8"
+    ]
     
+    # Handle empty input
+    if not text or not text.strip():
+        return "<div style='padding: 10px; color: #666; font-style: italic;'>Enter OpenAlex URLs separated by semicolons to see query descriptions</div>"
     
+    # Split URLs on semicolons and strip whitespace
+    urls = [url.strip() for url in text.split(";") if url.strip()]
+    
+    if not urls:
+        return "<div style='padding: 10px; color: #666; font-style: italic;'>No valid URLs found</div>"
+    
+    pills = []
+    for i, url in enumerate(urls):
+        color = palette[i % len(palette)]
+        try:
+            # Get readable name for the URL
+            readable_name = openalex_url_to_readable_name(url)
+        except Exception as e:
+            print(f"Error processing URL {url}: {e}")
+            readable_name = f"Query {i+1}"
+        
+        pills.append(
+            f'<span style="background:{color};'
+            'padding: 8px 12px; margin: 4px; '
+            'border-radius: 12px; font-weight: 500;'
+            'display: inline-block; font-family: \'Roboto Condensed\', sans-serif;'
+            'border: 1px solid rgba(0,0,0,0.1); font-size: 14px;'
+            'box-shadow: 0 1px 3px rgba(0,0,0,0.1);">'
+            f'{readable_name}</span>'
+        )
+    
+    return (
+        "<div style='padding: 8px 0;'>"
+        "<div style='font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500;'>"
+        f"{'Query' if len(urls) == 1 else 'Queries'} ({len(urls)}):</div>"
+        "<div style='display: flex; flex-wrap: wrap; gap: 4px;'>"
+        + "".join(pills) + 
+        "</div></div>"
+    )
 
 
 def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_checkbox, 
-           sample_reduction_method, plot_time_checkbox, 
+           sample_reduction_method, plot_type_dropdown, 
            locally_approximate_publication_date_checkbox, 
            download_csv_checkbox, download_png_checkbox, citation_graph_checkbox, 
-           csv_upload, highlight_color, 
+           csv_upload, highlight_color, selected_colormap_name, seed_value,
            progress=gr.Progress()):
     """
     Main prediction pipeline that processes OpenAlex queries and creates visualizations.
@@ -261,13 +328,14 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         sample_size_slider (int): Maximum number of samples to process
         reduce_sample_checkbox (bool): Whether to reduce sample size
         sample_reduction_method (str): Method for sample reduction ("Random" or "Order of Results")
-        plot_time_checkbox (bool): Whether to color points by publication date
+        plot_type_dropdown (str): Type of plot coloring ("No special coloring", "Time-based coloring", "Categorical coloring")
         locally_approximate_publication_date_checkbox (bool): Whether to approximate publication date locally before plotting.
         download_csv_checkbox (bool): Whether to download CSV data
         download_png_checkbox (bool): Whether to download PNG data
         citation_graph_checkbox (bool): Whether to add citation graph
         csv_upload (str): Path to uploaded CSV file
         highlight_color (str): Color for highlighting points
+        selected_colormap_name (str): Name of the selected colormap for time-based coloring
         progress (gr.Progress): Gradio progress tracker
     
     Returns:
@@ -275,6 +343,10 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     """
     # Initialize start_time at the beginning of the function
     start_time = time.time()
+    
+    # Convert dropdown selection to boolean flags for backward compatibility
+    plot_time_checkbox = plot_type_dropdown == "Time-based coloring"
+    treat_as_categorical_checkbox = plot_type_dropdown == "Categorical coloring"
     
     # Helper function to generate error responses
     def create_error_response(error_message):
@@ -358,6 +430,9 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             print(f"Successfully loaded {len(records_df)} records from uploaded file")
             progress(0.2, desc="Processing uploaded data...")
             
+            # For uploaded files, set all records to query_index 0
+            records_df['query_index'] = 0
+            
         except Exception as e:
             error_message = f"Error processing uploaded file: {str(e)}"
             return create_error_response(error_message)
@@ -374,6 +449,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         # Split input into multiple URLs if present
         urls = [url.strip() for url in text_input.split(';')]
         records = []
+        query_indices = []  # Track which query each record comes from
         total_query_length = 0
         
         # Use first URL for filename
@@ -388,54 +464,154 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             total_query_length += query_length
             print(f'Requesting {query_length} entries from query {i+1}/{len(urls)}...')
             
-            target_size = sample_size_slider if reduce_sample_checkbox and sample_reduction_method == "First n samples" else query_length
-            records_per_query = 0
-            
-            should_break = False
-            for page in query.paginate(per_page=200, n_max=None):
-                # Add retry mechanism for processing each page
-                max_retries = 5
-                base_wait_time = 1  # Starting wait time in seconds
-                exponent = 1.5  # Exponential factor
+            # Use PyAlex sampling for random samples - much more efficient!
+            if reduce_sample_checkbox and sample_reduction_method == "n random samples":
+                # Use PyAlex's built-in sample method for efficient server-side sampling
+                target_size = min(sample_size_slider, query_length)
+                try:
+                    seed_int = int(seed_value) if seed_value.strip() else 42
+                except ValueError:
+                    seed_int = 42
+                    print(f"Invalid seed value '{seed_value}', using default: 42")
                 
-                for retry_attempt in range(max_retries):
-                    try:
+                print(f'Attempting PyAlex sampling: {target_size} from {query_length} (seed={seed_int})')
+                
+                try:
+                    # Check if PyAlex sample method exists and works
+                    if hasattr(query, 'sample'):
+                        sampled_query = query.sample(target_size, seed=seed_int)
+                        
+                        # IMPORTANT: When using sample(), must use method='page' for pagination!
+                        sampled_records = []
+                        records_count = 0
+                        for page in sampled_query.paginate(per_page=200, method='page', n_max=None):
+                            for record in page:
+                                sampled_records.append(record)
+                                records_count += 1
+                                progress(0.1 + (0.15 * records_count / target_size), 
+                                        desc=f"Getting sampled data from query {i+1}/{len(urls)}... ({records_count}/{target_size})")
+                        
+                        print(f'PyAlex sampling successful: got {len(sampled_records)} records')
+                    else:
+                        raise AttributeError("sample method not available")
+                        
+                except Exception as e:
+                    print(f"PyAlex sampling failed ({e}), using fallback method...")
+                    
+                    # Fallback: get all records and sample manually
+                    all_records = []
+                    records_count = 0
+                    
+                    # Use default cursor pagination for non-sampled queries
+                    for page in query.paginate(per_page=200, n_max=None):
                         for record in page:
-                            records.append(record)
-                            records_per_query += 1
-                            progress(0.1 + (0.2 * len(records) / (total_query_length)), 
-                                    desc=f"Getting data from query {i+1}/{len(urls)}...")
+                            all_records.append(record)
+                            records_count += 1
+                            progress(0.1 + (0.15 * records_count / query_length), 
+                                    desc=f"Downloading for sampling from query {i+1}/{len(urls)}...")
                             
-                            if reduce_sample_checkbox and sample_reduction_method == "First n samples" and records_per_query >= target_size:
-                                should_break = True
-                                break
-                        # If we get here without an exception, break the retry loop
-                        break
-                    except Exception as e:
-                        print(f"Error processing page: {e}")
-                        if retry_attempt < max_retries - 1:
-                            wait_time = base_wait_time * (exponent ** retry_attempt) + random.random()
-                            print(f"Retrying in {wait_time:.2f} seconds (attempt {retry_attempt + 1}/{max_retries})...")
-                            time.sleep(wait_time)
-                        else:
-                            print(f"Maximum retries reached. Continuing with next page.")
+                    # Now sample manually
+                    if len(all_records) > target_size:
+                        import random
+                        random.seed(seed_int)
+                        sampled_records = random.sample(all_records, target_size)
+                    else:
+                        sampled_records = all_records
+                        
+                    print(f'Fallback sampling: got {len(sampled_records)} from {len(all_records)} total')
                 
-                if should_break:
+                # Add the sampled records
+                for idx, record in enumerate(sampled_records):
+                    records.append(record)
+                    query_indices.append(i)
+                    progress(0.1 + (0.2 * len(records) / total_query_length), 
+                            desc=f"Processing sampled data from query {i+1}/{len(urls)}...")
+            else:
+                # Keep existing logic for "First n samples" and "All"
+                target_size = sample_size_slider if reduce_sample_checkbox and sample_reduction_method == "First n samples" else query_length
+                records_per_query = 0
+                
+                should_break_current_query = False
+                for page in query.paginate(per_page=200, n_max=None):
+                    # Add retry mechanism for processing each page
+                    max_retries = 5
+                    base_wait_time = 1  # Starting wait time in seconds
+                    exponent = 1.5  # Exponential factor
+                    
+                    for retry_attempt in range(max_retries):
+                        try:
+                            for record in page:
+                                records.append(record)
+                                query_indices.append(i)  # Track which query this record comes from
+                                records_per_query += 1
+                                progress(0.1 + (0.2 * len(records) / (total_query_length)), 
+                                        desc=f"Getting data from query {i+1}/{len(urls)}...")
+                                
+                                if reduce_sample_checkbox and sample_reduction_method == "First n samples" and records_per_query >= target_size:
+                                    should_break_current_query = True
+                                    break
+                            # If we get here without an exception, break the retry loop
+                            break
+                        except Exception as e:
+                            print(f"Error processing page: {e}")
+                            if retry_attempt < max_retries - 1:
+                                wait_time = base_wait_time * (exponent ** retry_attempt) + random.random()
+                                print(f"Retrying in {wait_time:.2f} seconds (attempt {retry_attempt + 1}/{max_retries})...")
+                                time.sleep(wait_time)
+                            else:
+                                print(f"Maximum retries reached. Continuing with next page.")
+                
+                if should_break_current_query:
                     break
-            if should_break:
-                break
+            # Continue to next query - don't break out of the main query loop
         print(f"Query completed in {time.time() - start_time:.2f} seconds")
+        print(f"Total records collected: {len(records)}")
+        print(f"Expected from all queries: {total_query_length}")
+        print(f"Sample method used: {sample_reduction_method}")
+        print(f"Reduce sample enabled: {reduce_sample_checkbox}")
+        if sample_reduction_method == "n random samples":
+            print(f"Seed value: {seed_value}")
 
         # Process records
         processing_start = time.time()
         records_df = process_records_to_df(records)
         
-        if reduce_sample_checkbox and sample_reduction_method != "All":
-            sample_size = min(sample_size_slider, len(records_df))        
-            if sample_reduction_method == "n random samples":
-                records_df = records_df.sample(sample_size)
-            elif sample_reduction_method == "First n samples":
-                records_df = records_df.iloc[:sample_size]
+        # Add query_index to the dataframe
+        records_df['query_index'] = query_indices[:len(records_df)]
+        
+        if reduce_sample_checkbox and sample_reduction_method != "All" and sample_reduction_method != "n random samples":
+            # Note: We skip "n random samples" here because PyAlex sampling is already done above
+            sample_size = min(sample_size_slider, len(records_df))
+            
+            # Check if we have multiple queries for sampling logic
+            urls = [url.strip() for url in text_input.split(';')] if text_input else ['']
+            has_multiple_queries = len(urls) > 1 and not csv_upload
+            
+            # If using categorical coloring with multiple queries, sample each query independently
+            if treat_as_categorical_checkbox and has_multiple_queries:
+                # Sample the full sample_size from each query independently
+                unique_queries = sorted(records_df['query_index'].unique())
+                
+                sampled_dfs = []
+                for query_idx in unique_queries:
+                    query_records = records_df[records_df['query_index'] == query_idx]
+                    
+                    # Apply the full sample size to each query (only for "First n samples")
+                    current_sample_size = min(sample_size_slider, len(query_records))
+                    
+                    if sample_reduction_method == "First n samples":
+                        sampled_query = query_records.iloc[:current_sample_size]
+                    
+                    sampled_dfs.append(sampled_query)
+                    print(f"Query {query_idx+1}: sampled {len(sampled_query)} records from {len(query_records)} available")
+                
+                records_df = pd.concat(sampled_dfs, ignore_index=True)
+                print(f"Total after independent sampling: {len(records_df)} records")
+                print(f"Query distribution: {records_df['query_index'].value_counts().sort_index()}")
+            else:
+                # Original sampling logic for single query or non-categorical (only "First n samples" now)
+                if sample_reduction_method == "First n samples":
+                    records_df = records_df.iloc[:sample_size]
         print(f"Records processed in {time.time() - processing_start:.2f} seconds")
 
     # Create embeddings - this happens regardless of data source
@@ -468,14 +644,68 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     viz_prep_start = time.time()
     progress(0.6, desc="Preparing visualization data...")
     
+    
+    # Set up colors:
+    
     basedata_df['color'] = '#ced4d211'
     
+    # Convert highlight_color to hex if it isn't already
+    if not highlight_color.startswith('#'):
+        highlight_color = rgba_to_hex(highlight_color)
     highlight_color = rgba_to_hex(highlight_color)
     
-    if not plot_time_checkbox:
-        records_df['color'] = highlight_color
-    else:
-        cmap = colormaps.haline
+    print('Highlight color:', highlight_color)
+    
+    # Check if we have multiple queries and categorical coloring is enabled
+    urls = [url.strip() for url in text_input.split(';')] if text_input else ['']
+    has_multiple_queries = len(urls) > 1 and not csv_upload
+    
+    if treat_as_categorical_checkbox and has_multiple_queries:
+        # Use categorical coloring for multiple queries
+        print("Using categorical coloring for multiple queries")
+        
+        # Define a categorical colormap - using distinct colors
+        categorical_colors = [
+            '#e41a1c',  # Red
+            '#377eb8',  # Blue
+            '#4daf4a',  # Green
+            '#984ea3',  # Purple
+            '#ff7f00',  # Orange
+            '#ffff33',  # Yellow
+            '#a65628',  # Brown
+            '#f781bf',  # Pink
+            '#999999',  # Gray
+            '#66c2a5',  # Teal
+            '#fc8d62',  # Light Orange
+            '#8da0cb',  # Light Blue
+            '#e78ac3',  # Light Pink
+            '#a6d854',  # Light Green
+            '#ffd92f',  # Light Yellow
+            '#e5c494',  # Beige
+            '#b3b3b3',  # Light Gray
+        ]
+        
+        # Assign colors based on query_index
+        unique_queries = sorted(records_df['query_index'].unique())
+        query_color_map = {query_idx: categorical_colors[i % len(categorical_colors)] 
+                          for i, query_idx in enumerate(unique_queries)}
+        
+        records_df['color'] = records_df['query_index'].map(query_color_map)
+        
+        # Add query_label for better identification
+        records_df['query_label'] = records_df['query_index'].apply(lambda x: f"Query {x+1}")
+        
+    elif plot_time_checkbox:
+        # Use selected colormap if provided, otherwise default to haline
+        if selected_colormap_name and selected_colormap_name.strip():
+            try:
+                cmap = plt.get_cmap(selected_colormap_name)
+            except Exception as e:
+                print(f"Warning: Could not load colormap '{selected_colormap_name}': {e}")
+                cmap = colormaps.haline
+        else:
+            cmap = colormaps.haline
+            
         if not locally_approximate_publication_date_checkbox:
             # Create color mapping based on publication years
             years = pd.to_numeric(records_df['publication_year'])
@@ -495,6 +725,9 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             ])
             norm = mcolors.Normalize(vmin=local_years.min(), vmax=local_years.max())
             records_df['color'] = [mcolors.to_hex(cmap(norm(year))) for year in local_years]
+    else:
+        # No special coloring - use highlight color
+        records_df['color'] = highlight_color
                         
     stacked_df = pd.concat([basedata_df, records_df], axis=0, ignore_index=True)
     stacked_df = stacked_df.fillna("Unlabelled")
@@ -562,7 +795,13 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         export_df = records_df[['title', 'abstract', 'doi', 'publication_year', 'x', 'y','id','primary_topic']]
         export_df['parsed_field'] = [get_field(row) for ix, row in export_df.iterrows()]
         export_df['referenced_works'] = [', '.join(x) for x in records_df['referenced_works']]
-        if locally_approximate_publication_date_checkbox and plot_time_checkbox:
+        
+        # Add query information if categorical coloring is used
+        if treat_as_categorical_checkbox and has_multiple_queries:
+            export_df['query_index'] = records_df['query_index']
+            export_df['query_label'] = records_df['query_label']
+        
+        if locally_approximate_publication_date_checkbox and plot_type_dropdown == "Time-based coloring":
             export_df['approximate_publication_year'] = local_years
         export_df.to_csv(csv_file_path, index=False)
         
@@ -628,13 +867,23 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             
         # Time-based visualization
         scatter_start = time.time()
-        if plot_time_checkbox:
+        if plot_type_dropdown == "Time-based coloring":
+            # Use selected colormap if provided, otherwise default to haline
+            if selected_colormap_name and selected_colormap_name.strip():
+                try:
+                    static_cmap = plt.get_cmap(selected_colormap_name)
+                except Exception as e:
+                    print(f"Warning: Could not load colormap '{selected_colormap_name}': {e}")
+                    static_cmap = colormaps.haline
+            else:
+                static_cmap = colormaps.haline
+                
             if locally_approximate_publication_date_checkbox:
                 scatter = plt.scatter(
                     umap_embeddings[:,0],
                     umap_embeddings[:,1],
                     c=local_years,
-                    cmap=colormaps.haline,
+                    cmap=static_cmap,
                     alpha=0.8,
                     s=point_size
                 )
@@ -644,7 +893,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                     umap_embeddings[:,0],
                     umap_embeddings[:,1],
                     c=years,
-                    cmap=colormaps.haline,
+                    cmap=static_cmap,
                     alpha=0.8,
                     s=point_size
                 )
@@ -713,8 +962,8 @@ function refresh() {
 
 
 # Gradio interface setup
-with gr.Blocks(theme=theme, css="""
-    .gradio-container a {
+with gr.Blocks(theme=theme, css=f"""
+    .gradio-container a {{
         color: black !important;
         text-decoration: none !important;  /* Force remove default underline */
         font-weight: bold;
@@ -722,11 +971,14 @@ with gr.Blocks(theme=theme, css="""
         display: inline-block;  /* Enable proper spacing for descenders */
         line-height: 1.1;  /* Adjust line height */
         padding-bottom: 2px;  /* Add space for descenders */
-    }
-    .gradio-container a:hover {
+    }}
+    .gradio-container a:hover {{
         color: #b23310 !important;
         border-bottom: 3px solid #b23310;  /* Wider underline, only on hover */
-    }
+    }}
+    
+    /* Colormap chooser styles */
+    {colormap_chooser.css()}
 """, js=js_light) as demo:
     gr.Markdown("""
     <div style="max-width: 100%; margin: 0 auto;">
@@ -756,6 +1008,13 @@ with gr.Blocks(theme=theme, css="""
             text_input = gr.Textbox(label="OpenAlex-search URL",
                                     info="Enter the URL to an OpenAlex-search.")
             
+            # Add the query highlight display
+            query_display = gr.HTML(
+                value="<div style='padding: 10px; color: #666; font-style: italic;'>Enter OpenAlex URLs separated by semicolons to see query descriptions</div>",
+                label="",
+                show_label=False
+            )
+            
             gr.Markdown("### Sample Settings")
             reduce_sample_checkbox = gr.Checkbox(
                 label="Reduce Sample Size",
@@ -766,7 +1025,8 @@ with gr.Blocks(theme=theme, css="""
                 ["All", "First n samples", "n random samples"],
                 label="Sample Selection Method",
                 value="First n samples",
-                info="How to choose the samples to keep."
+                info="How to choose the samples to keep.",
+                visible=True  # Will be controlled by reduce_sample_checkbox
             )
             
             if is_running_in_hf_zero_gpu():
@@ -781,20 +1041,32 @@ with gr.Blocks(theme=theme, css="""
                 step=10,
                 value=1000,
                 info="How many samples to keep.",
-                visible=True
+                visible=True  # Will be controlled by reduce_sample_checkbox
+            )
+
+            # Add this new seed field
+            seed_textbox = gr.Textbox(
+                label="Random Seed",
+                value="42",
+                info="Seed for random sampling reproducibility.",
+                visible=False  # Will be controlled by both reduce_sample_checkbox and sample_reduction_method
             )
             
             gr.Markdown("### Plot Settings")
-            plot_time_checkbox = gr.Checkbox(
-                label="Plot Time",
-                value=True,
-                info="Colour points by their publication date."
+            # Replace plot_time_checkbox with a dropdown
+            plot_type_dropdown = gr.Dropdown(
+                ["No special coloring", "Time-based coloring", "Categorical coloring"],
+                label="Plot Coloring Type",
+                value="Time-based coloring",
+                info="Choose how to color the points on the plot."
             )
             locally_approximate_publication_date_checkbox = gr.Checkbox(
                 label="Locally Approximate Publication Date",
                 value=True,
-                info="Colour points by the average publication date in their area."
+                info="Colour points by the average publication date in their area.",
+                visible=True  # Will be controlled by plot_type_dropdown
             )
+            # Remove treat_as_categorical_checkbox since it's now part of the dropdown
             
             gr.Markdown("### Download Options")
             download_csv_checkbox = gr.Checkbox(
@@ -821,14 +1093,24 @@ with gr.Blocks(theme=theme, css="""
                 label="Upload your own CSV file downloaded via pyalex.", 
                 file_types=[".csv"],
             )
-
+            
             # --- Aesthetics Accordion ---
             with gr.Accordion("Aesthetics", open=False):
+                gr.Markdown("### Color Selection")
+                gr.Markdown("*Choose an individual color to highlight your data.*")
                 highlight_color_picker = gr.ColorPicker(
                     label="Highlight Color",
+                    show_label=False,
                     value="#5e2784",
-                    info="Choose the highlight color for your query points."
+                    #info="Choose the highlight color for your query points."
                 )
+                
+                # Add colormap chooser
+                gr.Markdown("### Colormap Selection")
+                gr.Markdown("*Choose a colormap for time-based visualizations (when 'Plot Time' is enabled)*")
+                
+                # Render the colormap chooser (created earlier)
+                colormap_chooser.render_tabs()
             
         with gr.Column(scale=2):
             html = gr.HTML(
@@ -877,15 +1159,43 @@ with gr.Blocks(theme=theme, css="""
     </div>
     """)
 
-    def update_slider_visibility(method):
-        return gr.Slider(visible=(method != "All"))
+    # Update the visibility control functions
+    def update_sample_controls_visibility(reduce_sample_enabled, sample_method):
+        """Update visibility of sample reduction controls based on checkbox and method"""
+        method_visible = reduce_sample_enabled
+        slider_visible = reduce_sample_enabled and sample_method != "All"
+        seed_visible = reduce_sample_enabled and sample_method == "n random samples"
+        
+        return (
+            gr.Dropdown(visible=method_visible),
+            gr.Slider(visible=slider_visible), 
+            gr.Textbox(visible=seed_visible)
+        )
+    
+    def update_plot_controls_visibility(plot_type):
+        """Update visibility of plot controls based on plot type"""
+        locally_approx_visible = plot_type == "Time-based coloring"
+        return gr.Checkbox(visible=locally_approx_visible)
 
-    sample_reduction_method.change(
-        fn=update_slider_visibility,
-        inputs=[sample_reduction_method],
-        outputs=[sample_size_slider]
+    # Update event handlers
+    reduce_sample_checkbox.change(
+        fn=update_sample_controls_visibility,
+        inputs=[reduce_sample_checkbox, sample_reduction_method],
+        outputs=[sample_reduction_method, sample_size_slider, seed_textbox]
     )
     
+    sample_reduction_method.change(
+        fn=update_sample_controls_visibility,
+        inputs=[reduce_sample_checkbox, sample_reduction_method],
+        outputs=[sample_reduction_method, sample_size_slider, seed_textbox]
+    )
+    
+    plot_type_dropdown.change(
+        fn=update_plot_controls_visibility,
+        inputs=[plot_type_dropdown],
+        outputs=[locally_approximate_publication_date_checkbox]
+    )
+
     def show_cancel_button():
         return gr.Button(visible=True)
     
@@ -908,13 +1218,16 @@ with gr.Blocks(theme=theme, css="""
             sample_size_slider, 
             reduce_sample_checkbox, 
             sample_reduction_method, 
-            plot_time_checkbox, 
+            plot_type_dropdown,  # Changed from plot_time_checkbox
             locally_approximate_publication_date_checkbox,
+            # Removed treat_as_categorical_checkbox since it's now part of plot_type_dropdown
             download_csv_checkbox, 
             download_png_checkbox,
             citation_graph_checkbox,
             csv_upload,
-            highlight_color_picker
+            highlight_color_picker,
+            colormap_chooser.selected_name,
+            seed_textbox
         ],
         outputs=[html, html_download, csv_download, png_download, cancel_btn]
     )
@@ -925,6 +1238,13 @@ with gr.Blocks(theme=theme, css="""
         outputs=cancel_btn,
         cancels=[run_event],
         queue=False  # Important to make the button hide immediately
+    )
+
+    # Connect text input changes to query display updates
+    text_input.change(
+        fn=highlight_queries,
+        inputs=text_input,
+        outputs=query_display
     )
 
 

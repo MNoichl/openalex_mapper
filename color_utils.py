@@ -7,8 +7,8 @@ def rgba_to_hex(color):
         # If already hex
         if color.startswith('#') and (len(color) == 7 or len(color) == 4):
             return color
-        # If rgba or rgb
-        match = re.match(r"rgba?\\(([^)]+)\\)", color)
+        # If rgba or rgb - FIX: Remove extra backslashes
+        match = re.match(r"rgba?\(([^)]+)\)", color)
         if match:
             parts = match.group(1).split(',')
             r = int(float(parts[0]))

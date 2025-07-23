@@ -1,6 +1,6 @@
 import numpy as np
 from urllib.parse import urlparse, parse_qs
-from pyalex import Works
+from pyalex import Works, Authors, Institutions
 import pandas as pd
 import ast, json
 
@@ -214,3 +214,163 @@ def get_records_from_dois(doi_list, block_size=50):
         except Exception as e:
             print(f"Error fetching DOIs {sublist}: {e}")
     return pd.DataFrame(all_records)
+
+def openalex_url_to_readable_name(url):
+    """
+    Convert an OpenAlex URL to a short, human-readable query description.
+    
+    Args:
+    url (str): The OpenAlex search URL
+    
+    Returns:
+    str: A short, human-readable description of the query
+    
+    Examples:
+    - "Search: 'Kuramoto Model'"
+    - "Search: 'quantum physics', 2020-2023"
+    - "Cites: Popper (1959)"
+    - "From: University of Pittsburgh, 1999-2020"
+    - "By: Einstein, A., 1905-1955"
+    """
+    import re
+    
+    # Parse the URL
+    parsed_url = urlparse(url)
+    query_params = parse_qs(parsed_url.query)
+    
+    # Initialize description parts
+    parts = []
+    year_range = None
+    
+    # Handle filters
+    if 'filter' in query_params:
+        filters = query_params['filter'][0].split(',')
+        
+        for f in filters:
+            if ':' not in f:
+                continue
+                
+            key, value = f.split(':', 1)
+            
+            try:
+                if key == 'default.search':
+                    # Clean up search term (remove quotes if present)
+                    search_term = value.strip('"\'')
+                    parts.append(f"Search: '{search_term}'")
+                    
+                elif key == 'publication_year':
+                    # Handle year ranges or single years
+                    if '-' in value:
+                        start_year, end_year = value.split('-')
+                        year_range = f"{start_year}-{end_year}"
+                    else:
+                        year_range = value
+                        
+                elif key == 'cites':
+                    # Look up the cited work to get author and year
+                    work_id = value
+                    try:
+                        cited_work = Works()[work_id]
+                        if cited_work:
+                            # Get first author's last name
+                            author_name = "Unknown"
+                            year = "Unknown"
+                            
+                            if cited_work.get('authorships') and len(cited_work['authorships']) > 0:
+                                first_author = cited_work['authorships'][0]['author']
+                                if first_author.get('display_name'):
+                                    # Extract last name (assuming "First Last" format)
+                                    name_parts = first_author['display_name'].split()
+                                    author_name = name_parts[-1] if name_parts else first_author['display_name']
+                            
+                            if cited_work.get('publication_year'):
+                                year = str(cited_work['publication_year'])
+                                
+                            parts.append(f"Cites: {author_name} ({year})")
+                        else:
+                            parts.append(f"Cites: Work {work_id}")
+                    except Exception as e:
+                        print(f"Could not fetch cited work {work_id}: {e}")
+                        parts.append(f"Cites: Work {work_id}")
+                        
+                elif key == 'authorships.institutions.lineage':
+                    # Look up institution name
+                    inst_id = value
+                    try:
+                        institution = Institutions()[inst_id]
+                        if institution and institution.get('display_name'):
+                            parts.append(f"From: {institution['display_name']}")
+                        else:
+                            parts.append(f"From: Institution {inst_id}")
+                    except Exception as e:
+                        print(f"Could not fetch institution {inst_id}: {e}")
+                        parts.append(f"From: Institution {inst_id}")
+                        
+                elif key == 'authorships.author.id':
+                    # Look up author name
+                    author_id = value
+                    try:
+                        author = Authors()[author_id]
+                        if author and author.get('display_name'):
+                            parts.append(f"By: {author['display_name']}")
+                        else:
+                            parts.append(f"By: Author {author_id}")
+                    except Exception as e:
+                        print(f"Could not fetch author {author_id}: {e}")
+                        parts.append(f"By: Author {author_id}")
+                        
+                elif key == 'type':
+                    # Handle work types
+                    type_mapping = {
+                        'article': 'Articles',
+                        'book': 'Books',
+                        'book-chapter': 'Book Chapters',
+                        'dissertation': 'Dissertations',
+                        'preprint': 'Preprints'
+                    }
+                    work_type = type_mapping.get(value, value.replace('-', ' ').title())
+                    parts.append(f"Type: {work_type}")
+                    
+                elif key == 'host_venue.id':
+                    # Look up venue name
+                    venue_id = value
+                    try:
+                        # For venues, we can use Works to get source info, but let's try a direct approach
+                        # This might need adjustment based on pyalex API structure
+                        parts.append(f"In: Venue {venue_id}")  # Fallback
+                    except Exception as e:
+                        parts.append(f"In: Venue {venue_id}")
+                        
+                elif key.startswith('concepts.id'):
+                    # Handle concept filters - these are topic/concept IDs
+                    concept_id = value
+                    parts.append(f"Topic: {concept_id}")  # Could be enhanced with concept lookup
+                    
+                else:
+                    # Generic handling for other filters
+                    clean_key = key.replace('_', ' ').replace('.', ' ').title()
+                    clean_value = value.replace('_', ' ')
+                    parts.append(f"{clean_key}: {clean_value}")
+                    
+            except Exception as e:
+                print(f"Error processing filter {f}: {e}")
+                continue
+    
+    # Combine parts into final description
+    if not parts:
+        description = "OpenAlex Query"
+    else:
+        description = ", ".join(parts)
+    
+    # Add year range if present
+    if year_range:
+        if parts:
+            description += f", {year_range}"
+        else:
+            description = f"Works from {year_range}"
+    
+    # Limit length to keep it readable
+    if len(description) > 100:
+        description = description[:97] + "..."
+        
+    return description
