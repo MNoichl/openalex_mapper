@@ -146,6 +146,14 @@ from network_utils import create_citation_graph, draw_citation_graph
 # Add colormap chooser imports
 from colormap_chooser import ColormapChooser, setup_colormaps
 
+# Add legend builder imports
+try:
+    from legend_builders import continuous_legend_html_css, categorical_legend_html_css
+    HAS_LEGEND_BUILDERS = True
+except ImportError:
+    print("Warning: legend_builders.py not found. Legends will be disabled.")
+    HAS_LEGEND_BUILDERS = False
+
 
 # Configure OpenAlex
 pyalex.config.email = "maximilian.noichl@uni-bamberg.de"
@@ -265,52 +273,6 @@ def create_embeddings(texts_to_embedd):
     """Create embeddings for the input texts using the loaded model."""
     return model.encode(texts_to_embedd, show_progress_bar=True, batch_size=192)
 
-    
-def highlight_queries(text: str) -> str:
-    """Split OpenAlex URLs on semicolons and display them as colored pills with readable names."""
-    palette = [
-        "#e8f4fd", "#fff2e8", "#f0f9e8", "#fdf2f8",
-        "#f3e8ff", "#e8f8f5", "#fef7e8", "#f8f0e8"
-    ]
-    
-    # Handle empty input
-    if not text or not text.strip():
-        return "<div style='padding: 10px; color: #666; font-style: italic;'>Enter OpenAlex URLs separated by semicolons to see query descriptions</div>"
-    
-    # Split URLs on semicolons and strip whitespace
-    urls = [url.strip() for url in text.split(";") if url.strip()]
-    
-    if not urls:
-        return "<div style='padding: 10px; color: #666; font-style: italic;'>No valid URLs found</div>"
-    
-    pills = []
-    for i, url in enumerate(urls):
-        color = palette[i % len(palette)]
-        try:
-            # Get readable name for the URL
-            readable_name = openalex_url_to_readable_name(url)
-        except Exception as e:
-            print(f"Error processing URL {url}: {e}")
-            readable_name = f"Query {i+1}"
-        
-        pills.append(
-            f'<span style="background:{color};'
-            'padding: 8px 12px; margin: 4px; '
-            'border-radius: 12px; font-weight: 500;'
-            'display: inline-block; font-family: \'Roboto Condensed\', sans-serif;'
-            'border: 1px solid rgba(0,0,0,0.1); font-size: 14px;'
-            'box-shadow: 0 1px 3px rgba(0,0,0,0.1);">'
-            f'{readable_name}</span>'
-        )
-    
-    return (
-        "<div style='padding: 8px 0;'>"
-        "<div style='font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500;'>"
-        f"{'Query' if len(urls) == 1 else 'Queries'} ({len(urls)}):</div>"
-        "<div style='display: flex; flex-wrap: wrap; gap: 4px;'>"
-        + "".join(pills) + 
-        "</div></div>"
-    )
 
 
 def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_checkbox, 
@@ -451,6 +413,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         records = []
         query_indices = []  # Track which query each record comes from
         total_query_length = 0
+        expected_download_count = 0  # Track expected number of records to download for progress
         
         # Use first URL for filename
         first_query, first_params = openalex_url_to_pyalex_query(urls[0])
@@ -462,7 +425,17 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             query, params = openalex_url_to_pyalex_query(url)
             query_length = query.count()
             total_query_length += query_length
-            print(f'Requesting {query_length} entries from query {i+1}/{len(urls)}...')
+            
+            # Calculate expected download count for this query
+            if reduce_sample_checkbox and sample_reduction_method == "First n samples":
+                expected_for_this_query = min(sample_size_slider, query_length)
+            elif reduce_sample_checkbox and sample_reduction_method == "n random samples":
+                expected_for_this_query = min(sample_size_slider, query_length)
+            else:  # "All"
+                expected_for_this_query = query_length
+            
+            expected_download_count += expected_for_this_query
+            print(f'Requesting {query_length} entries from query {i+1}/{len(urls)} (expecting to download {expected_for_this_query})...')
             
             # Use PyAlex sampling for random samples - much more efficient!
             if reduce_sample_checkbox and sample_reduction_method == "n random samples":
@@ -524,15 +497,23 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 for idx, record in enumerate(sampled_records):
                     records.append(record)
                     query_indices.append(i)
-                    progress(0.1 + (0.2 * len(records) / total_query_length), 
-                            desc=f"Processing sampled data from query {i+1}/{len(urls)}...")
+                    # Safe progress calculation
+                    if expected_download_count > 0:
+                        progress_val = 0.1 + (0.2 * len(records) / expected_download_count)
+                    else:
+                        progress_val = 0.1
+                    progress(progress_val, desc=f"Processing sampled data from query {i+1}/{len(urls)}...")
             else:
                 # Keep existing logic for "First n samples" and "All"
                 target_size = sample_size_slider if reduce_sample_checkbox and sample_reduction_method == "First n samples" else query_length
                 records_per_query = 0
                 
+                print(f"Query {i+1}: target_size={target_size}, query_length={query_length}, method={sample_reduction_method}")
+                
                 should_break_current_query = False
-                for page in query.paginate(per_page=200, n_max=None):
+                # For "First n samples", limit the maximum records fetched to avoid over-downloading
+                max_records_to_fetch = target_size if reduce_sample_checkbox and sample_reduction_method == "First n samples" else None
+                for page in query.paginate(per_page=200, n_max=max_records_to_fetch):
                     # Add retry mechanism for processing each page
                     max_retries = 5
                     base_wait_time = 1  # Starting wait time in seconds
@@ -541,13 +522,24 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                     for retry_attempt in range(max_retries):
                         try:
                             for record in page:
+                                # Safety check: don't process if we've already reached target
+                                if reduce_sample_checkbox and sample_reduction_method == "First n samples" and records_per_query >= target_size:
+                                    print(f"Reached target size before processing: {records_per_query}/{target_size}, breaking from download")
+                                    should_break_current_query = True
+                                    break
+                                    
                                 records.append(record)
                                 query_indices.append(i)  # Track which query this record comes from
                                 records_per_query += 1
-                                progress(0.1 + (0.2 * len(records) / (total_query_length)), 
-                                        desc=f"Getting data from query {i+1}/{len(urls)}...")
+                                # Safe progress calculation
+                                if expected_download_count > 0:
+                                    progress_val = 0.1 + (0.2 * len(records) / expected_download_count)
+                                else:
+                                    progress_val = 0.1
+                                progress(progress_val, desc=f"Getting data from query {i+1}/{len(urls)}...")
                                 
                                 if reduce_sample_checkbox and sample_reduction_method == "First n samples" and records_per_query >= target_size:
+                                    print(f"Reached target size: {records_per_query}/{target_size}, breaking from download")
                                     should_break_current_query = True
                                     break
                             # If we get here without an exception, break the retry loop
@@ -560,13 +552,19 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                                 time.sleep(wait_time)
                             else:
                                 print(f"Maximum retries reached. Continuing with next page.")
+                                
+                        # Break out of retry loop if we've reached target
+                        if should_break_current_query:
+                            break
                 
                 if should_break_current_query:
+                    print(f"Successfully broke from page loop for query {i+1}")
                     break
             # Continue to next query - don't break out of the main query loop
         print(f"Query completed in {time.time() - start_time:.2f} seconds")
         print(f"Total records collected: {len(records)}")
-        print(f"Expected from all queries: {total_query_length}")
+        print(f"Expected to download: {expected_download_count}")
+        print(f"Available from all queries: {total_query_length}")
         print(f"Sample method used: {sample_reduction_method}")
         print(f"Reduce sample enabled: {reduce_sample_checkbox}")
         if sample_reduction_method == "n random samples":
@@ -664,29 +662,62 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         # Use categorical coloring for multiple queries
         print("Using categorical coloring for multiple queries")
         
-        # Define a categorical colormap - using distinct colors
-        categorical_colors = [
-            '#e41a1c',  # Red
-            '#377eb8',  # Blue
-            '#4daf4a',  # Green
-            '#984ea3',  # Purple
-            '#ff7f00',  # Orange
-            '#ffff33',  # Yellow
-            '#a65628',  # Brown
-            '#f781bf',  # Pink
-            '#999999',  # Gray
-            '#66c2a5',  # Teal
-            '#fc8d62',  # Light Orange
-            '#8da0cb',  # Light Blue
-            '#e78ac3',  # Light Pink
-            '#a6d854',  # Light Green
-            '#ffd92f',  # Light Yellow
-            '#e5c494',  # Beige
-            '#b3b3b3',  # Light Gray
-        ]
+        # Get colors from selected colormap or use default categorical colors
+        unique_queries = sorted(records_df['query_index'].unique())
+        num_queries = len(unique_queries)
+        
+        if selected_colormap_name and selected_colormap_name.strip():
+            try:
+                # Use selected colormap to generate distinct colors
+                categorical_cmap = plt.get_cmap(selected_colormap_name)
+                # Sample colors evenly spaced across the colormap
+                categorical_colors = [mcolors.to_hex(categorical_cmap(i / max(1, num_queries - 1))) 
+                                    for i in range(num_queries)]
+            except Exception as e:
+                print(f"Warning: Could not load colormap '{selected_colormap_name}' for categorical coloring: {e}")
+                # Fallback to default categorical colors
+                categorical_colors = [
+                    '#e41a1c',  # Red
+                    '#377eb8',  # Blue
+                    '#4daf4a',  # Green
+                    '#984ea3',  # Purple
+                    '#ff7f00',  # Orange
+                    '#ffff33',  # Yellow
+                    '#a65628',  # Brown
+                    '#f781bf',  # Pink
+                    '#999999',  # Gray
+                    '#66c2a5',  # Teal
+                    '#fc8d62',  # Light Orange
+                    '#8da0cb',  # Light Blue
+                    '#e78ac3',  # Light Pink
+                    '#a6d854',  # Light Green
+                    '#ffd92f',  # Light Yellow
+                    '#e5c494',  # Beige
+                    '#b3b3b3',  # Light Gray
+                ]
+        else:
+            # Use default categorical colors
+            categorical_colors = [
+                '#e41a1c',  # Red
+                '#377eb8',  # Blue
+                '#4daf4a',  # Green
+                '#984ea3',  # Purple
+                '#ff7f00',  # Orange
+                '#ffff33',  # Yellow
+                '#a65628',  # Brown
+                '#f781bf',  # Pink
+                '#999999',  # Gray
+                '#66c2a5',  # Teal
+                '#fc8d62',  # Light Orange
+                '#8da0cb',  # Light Blue
+                '#e78ac3',  # Light Pink
+                '#a6d854',  # Light Green
+                '#ffd92f',  # Light Yellow
+                '#e5c494',  # Beige
+                '#b3b3b3',  # Light Gray
+            ]
         
         # Assign colors based on query_index
-        unique_queries = sorted(records_df['query_index'].unique())
         query_color_map = {query_idx: categorical_colors[i % len(categorical_colors)] 
                           for i, query_idx in enumerate(unique_queries)}
         
@@ -699,18 +730,22 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         # Use selected colormap if provided, otherwise default to haline
         if selected_colormap_name and selected_colormap_name.strip():
             try:
-                cmap = plt.get_cmap(selected_colormap_name)
+                time_cmap = plt.get_cmap(selected_colormap_name)
             except Exception as e:
                 print(f"Warning: Could not load colormap '{selected_colormap_name}': {e}")
-                cmap = colormaps.haline
+                time_cmap = colormaps.haline
         else:
-            cmap = colormaps.haline
+            time_cmap = colormaps.haline
             
         if not locally_approximate_publication_date_checkbox:
             # Create color mapping based on publication years
             years = pd.to_numeric(records_df['publication_year'])
             norm = mcolors.Normalize(vmin=years.min(), vmax=years.max())
-            records_df['color'] = [mcolors.to_hex(cmap(norm(year))) for year in years]
+            records_df['color'] = [mcolors.to_hex(time_cmap(norm(year))) for year in years]
+            # Store for legend generation
+            years_for_legend = years
+            legend_label = "Publication Year"
+            legend_cmap = time_cmap
             
         else:
             n_neighbors = 10  # Adjust this value to control smoothing
@@ -724,7 +759,11 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 for idx in indices
             ])
             norm = mcolors.Normalize(vmin=local_years.min(), vmax=local_years.max())
-            records_df['color'] = [mcolors.to_hex(cmap(norm(year))) for year in local_years]
+            records_df['color'] = [mcolors.to_hex(time_cmap(norm(year))) for year in local_years]
+            # Store for legend generation
+            years_for_legend = local_years
+            legend_label = "Approx. Year"
+            legend_cmap = time_cmap
     else:
         # No special coloring - use highlight color
         records_df['color'] = highlight_color
@@ -732,6 +771,13 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     stacked_df = pd.concat([basedata_df, records_df], axis=0, ignore_index=True)
     stacked_df = stacked_df.fillna("Unlabelled")
     stacked_df['parsed_field'] = [get_field(row) for ix, row in stacked_df.iterrows()]
+    
+    # Create marker size array: basemap points = 2, query result points = 4
+    marker_sizes = np.concatenate([
+        np.full(len(basedata_df), 1.),  # Basemap points
+        np.full(len(records_df), 2.5)    # Query result points
+    ])
+    
     extra_data = pd.DataFrame(stacked_df['doi'])
     print(f"Visualization data prepared in {time.time() - viz_prep_start:.2f} seconds")
     
@@ -756,6 +802,94 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     # Create a solid black colormap
     black_cmap = mcolors.LinearSegmentedColormap.from_list('black', ['#000000', '#000000'])
     
+    # Generate legends based on plot type
+    custom_html = ""
+    legend_css = ""
+    
+    if HAS_LEGEND_BUILDERS:
+        if treat_as_categorical_checkbox and has_multiple_queries:
+            # Create categorical legend for multiple queries
+            unique_queries = sorted(records_df['query_index'].unique())
+            color_mapping = {}
+            
+            # Get readable names for each query URL
+            for i, query_idx in enumerate(unique_queries):
+                try:
+                    if query_idx < len(urls):
+                        readable_name = openalex_url_to_readable_name(urls[query_idx])
+                        # Truncate long names for legend display
+                        if len(readable_name) > 25:
+                            readable_name = readable_name[:22] + "..."
+                    else:
+                        readable_name = f"Query {query_idx + 1}"
+                except Exception:
+                    readable_name = f"Query {query_idx + 1}"
+                
+                color_mapping[readable_name] = query_color_map[query_idx]
+            
+            legend_html, legend_css = categorical_legend_html_css(
+                color_mapping,
+                title="Queries" if len(color_mapping) > 1 else "Query",
+                anchor="top-left",
+                container_id="dmp-query-legend"
+            )
+            custom_html += legend_html
+            
+        elif plot_time_checkbox and 'years_for_legend' in locals():
+            # Create continuous legend for time-based coloring using the stored variables
+            # Create ticks every 5 years within the range, ignoring endpoints
+            year_min, year_max = int(years_for_legend.min()), int(years_for_legend.max())
+            year_range = year_max - year_min
+            
+            # Find the first multiple of 5 that's greater than year_min
+            first_tick = ((year_min // 5) + 1) * 5
+            
+            # Generate ticks every 5 years until we reach year_max
+            ticks = []
+            current_tick = first_tick
+            while current_tick < year_max:
+                ticks.append(current_tick)
+                current_tick += 5
+            
+            # For ranges under 15 years, include both endpoints
+            if year_range < 15:
+                if not ticks:
+                    # No 5-year ticks, just show endpoints
+                    ticks = [year_min, year_max]
+                else:
+                    # Add endpoints to existing 5-year ticks
+                    if year_min not in ticks:
+                        ticks.insert(0, year_min)
+                    if year_max not in ticks:
+                        ticks.append(year_max)
+            
+            legend_html, legend_css = continuous_legend_html_css(
+                legend_cmap,
+                year_min,
+                year_max,
+                ticks=ticks,
+                label=legend_label,
+                anchor="top-right",
+                container_id="dmp-year-legend"
+            )
+            custom_html += legend_html
+    
+    # Add custom CSS to make legend titles equally large and bold
+    legend_title_css = """
+/* Make all legend titles equally large and bold */
+#dmp-query-legend .legend-title,
+#dmp-year-legend .colorbar-label {
+    font-size: 16px !important;
+    font-weight: bold !important;
+    font-family: 'Roboto Condensed', sans-serif !important;
+}
+"""
+    
+    # Combine legend CSS with existing custom CSS
+    combined_css = DATAMAP_CUSTOM_CSS + "\n" + legend_css + "\n" + legend_title_css
+    
+    
+    
     plot = datamapplot.create_interactive_plot(
         stacked_df[['x','y']].values,
         np.array(stacked_df['cluster_2_labels']),
@@ -763,13 +897,15 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         
         hover_text=[str(row['title']) for ix, row in stacked_df.iterrows()],
         marker_color_array=stacked_df['color'],
+        marker_size_array=marker_sizes,
         use_medoids=True, # Switch back once efficient mediod caclulation comes out!
         width=1000,
         height=1000,
+    #    point_size_scale=1.5,
         point_radius_min_pixels=1,
         text_outline_width=5,
         point_hover_color=highlight_color,
-        point_radius_max_pixels=7,
+        point_radius_max_pixels=5,
         cmap=black_cmap,
         background_image=graph_file_name if citation_graph_checkbox else None,
         #color_label_text=False,
@@ -779,7 +915,8 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         tooltip_font_family="Roboto Condensed",
         extra_point_data=extra_data,
         on_click="window.open(`{doi}`)",
-        custom_css=DATAMAP_CUSTOM_CSS,
+        custom_html=custom_html,
+        custom_css=combined_css,
         initial_zoom_fraction=.8,
         enable_search=False,
         offline_mode=False
@@ -801,8 +938,8 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             export_df['query_index'] = records_df['query_index']
             export_df['query_label'] = records_df['query_label']
         
-        if locally_approximate_publication_date_checkbox and plot_type_dropdown == "Time-based coloring":
-            export_df['approximate_publication_year'] = local_years
+        if locally_approximate_publication_date_checkbox and plot_type_dropdown == "Time-based coloring" and 'years_for_legend' in locals():
+            export_df['approximate_publication_year'] = years_for_legend
         export_df.to_csv(csv_file_path, index=False)
         
     if download_png_checkbox:
@@ -878,11 +1015,11 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             else:
                 static_cmap = colormaps.haline
                 
-            if locally_approximate_publication_date_checkbox:
+            if locally_approximate_publication_date_checkbox and 'years_for_legend' in locals():
                 scatter = plt.scatter(
                     umap_embeddings[:,0],
                     umap_embeddings[:,1],
-                    c=local_years,
+                    c=years_for_legend,
                     cmap=static_cmap,
                     alpha=0.8,
                     s=point_size
