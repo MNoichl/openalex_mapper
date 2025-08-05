@@ -258,6 +258,12 @@ def openalex_url_to_readable_name(url):
                     search_term = value.strip('"\'')
                     parts.append(f"Search: '{search_term}'")
                     
+                elif key == 'title_and_abstract.search':
+                    # Handle title and abstract search specifically
+                    from urllib.parse import unquote_plus
+                    search_term = unquote_plus(value).strip('"\'')
+                    parts.append(f"T&A: '{search_term}'")
+                    
                 elif key == 'publication_year':
                     # Handle year ranges or single years
                     if '-' in value:
@@ -348,8 +354,13 @@ def openalex_url_to_readable_name(url):
                     
                 else:
                     # Generic handling for other filters
+                    from urllib.parse import unquote_plus
                     clean_key = key.replace('_', ' ').replace('.', ' ').title()
-                    clean_value = value.replace('_', ' ')
+                    # Properly decode URL-encoded values
+                    try:
+                        clean_value = unquote_plus(value).replace('_', ' ')
+                    except:
+                        clean_value = value.replace('_', ' ')
                     parts.append(f"{clean_key}: {clean_value}")
                     
             except Exception as e:
@@ -370,7 +381,7 @@ def openalex_url_to_readable_name(url):
             description = f"Works from {year_range}"
     
     # Limit length to keep it readable
-    if len(description) > 100:
-        description = description[:97] + "..."
+    if len(description) > 60:
+        description = description[:57] + "..."
         
     return description

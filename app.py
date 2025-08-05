@@ -558,8 +558,9 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                             break
                 
                 if should_break_current_query:
-                    print(f"Successfully broke from page loop for query {i+1}")
-                    break
+                    print(f"Successfully downloaded target size for query {i+1}, moving to next query")
+                    # Continue to next query instead of breaking the entire query loop
+                    continue
             # Continue to next query - don't break out of the main query loop
         print(f"Query completed in {time.time() - start_time:.2f} seconds")
         print(f"Total records collected: {len(records)}")
@@ -576,6 +577,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
         
         # Add query_index to the dataframe
         records_df['query_index'] = query_indices[:len(records_df)]
+
         
         if reduce_sample_checkbox and sample_reduction_method != "All" and sample_reduction_method != "n random samples":
             # Note: We skip "n random samples" here because PyAlex sampling is already done above
@@ -611,7 +613,9 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 if sample_reduction_method == "First n samples":
                     records_df = records_df.iloc[:sample_size]
         print(f"Records processed in {time.time() - processing_start:.2f} seconds")
-
+        
+    print(query_indices)
+    print(records_df)
     # Create embeddings - this happens regardless of data source
     embedding_start = time.time()
     progress(0.3, desc="Embedding Data...")
@@ -655,7 +659,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     print('Highlight color:', highlight_color)
     
     # Check if we have multiple queries and categorical coloring is enabled
-    urls = [url.strip() for url in text_input.split(';')] if text_input else ['']
+    # Note: urls was already parsed earlier in the function, so we should use that
     has_multiple_queries = len(urls) > 1 and not csv_upload
     
     if treat_as_categorical_checkbox and has_multiple_queries:
@@ -677,45 +681,29 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 print(f"Warning: Could not load colormap '{selected_colormap_name}' for categorical coloring: {e}")
                 # Fallback to default categorical colors
                 categorical_colors = [
-                    '#e41a1c',  # Red
-                    '#377eb8',  # Blue
-                    '#4daf4a',  # Green
-                    '#984ea3',  # Purple
-                    '#ff7f00',  # Orange
-                    '#ffff33',  # Yellow
-                    '#a65628',  # Brown
-                    '#f781bf',  # Pink
-                    '#999999',  # Gray
-                    '#66c2a5',  # Teal
-                    '#fc8d62',  # Light Orange
-                    '#8da0cb',  # Light Blue
-                    '#e78ac3',  # Light Pink
-                    '#a6d854',  # Light Green
-                    '#ffd92f',  # Light Yellow
-                    '#e5c494',  # Beige
-                    '#b3b3b3',  # Light Gray
-                ]
+                        "#80418F",  # Plum
+                        "#EDA958",  # Earth Yellow
+                        "#F35264",  # Crayola Red
+                        "#087CA7",  # Cerulean
+                        "#FA826B",  # Salmon
+                        "#475C8F",  # Navy Blue
+                        "#579DA3",  # Moonstone Green
+                        "#d61d22",  # Bright Red
+                        "#97bb3c",  # Lime Green
+                    ]
         else:
             # Use default categorical colors
             categorical_colors = [
-                '#e41a1c',  # Red
-                '#377eb8',  # Blue
-                '#4daf4a',  # Green
-                '#984ea3',  # Purple
-                '#ff7f00',  # Orange
-                '#ffff33',  # Yellow
-                '#a65628',  # Brown
-                '#f781bf',  # Pink
-                '#999999',  # Gray
-                '#66c2a5',  # Teal
-                '#fc8d62',  # Light Orange
-                '#8da0cb',  # Light Blue
-                '#e78ac3',  # Light Pink
-                '#a6d854',  # Light Green
-                '#ffd92f',  # Light Yellow
-                '#e5c494',  # Beige
-                '#b3b3b3',  # Light Gray
-            ]
+                        "#80418F",  # Plum
+                        "#EDA958",  # Earth Yellow
+                        "#F35264",  # Crayola Red
+                        "#087CA7",  # Cerulean
+                        "#FA826B",  # Salmon
+                        "#475C8F",  # Navy Blue
+                        "#579DA3",  # Moonstone Green
+                        "#d61d22",  # Bright Red
+                        "#97bb3c",  # Lime Green
+                    ]
         
         # Assign colors based on query_index
         query_color_map = {query_idx: categorical_colors[i % len(categorical_colors)] 
@@ -813,19 +801,39 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
             color_mapping = {}
             
             # Get readable names for each query URL
+            used_names = set()  # Track used names to ensure uniqueness
             for i, query_idx in enumerate(unique_queries):
                 try:
                     if query_idx < len(urls):
                         readable_name = openalex_url_to_readable_name(urls[query_idx])
-                        # Truncate long names for legend display
-                        if len(readable_name) > 25:
-                            readable_name = readable_name[:22] + "..."
+                        print(f"Query {query_idx}: Original readable name: '{readable_name}'")
+                        # Truncate long names for legend display (increased from 25 to 40 chars)
+                        if len(readable_name) > 40:
+                            readable_name = readable_name[:37] + "..."
+                            print(f"Query {query_idx}: Truncated to: '{readable_name}'")
                     else:
                         readable_name = f"Query {query_idx + 1}"
-                except Exception:
+                except Exception as e:
                     readable_name = f"Query {query_idx + 1}"
+                    print(f"Query {query_idx}: Exception generating name: {e}")
                 
+                # Ensure uniqueness - if name is already used, append query number
+                original_name = readable_name
+                counter = 1
+                while readable_name in used_names:
+                    print(f"Query {query_idx}: Name '{readable_name}' already used, making unique...")
+                    readable_name = f"{original_name} ({query_idx + 1})"
+                    if len(readable_name) > 40:
+                        # Re-truncate if needed after adding query number
+                        base_name = original_name[:32] + "..."
+                        readable_name = f"{base_name} ({query_idx + 1})"
+                    counter += 1
+                
+                used_names.add(readable_name)
                 color_mapping[readable_name] = query_color_map[query_idx]
+                print(f"Query {query_idx}: Final legend name: '{readable_name}' -> color: {query_color_map[query_idx]}")
+            
+            print(f"Final color mapping: {color_mapping}")
             
             legend_html, legend_css = categorical_legend_html_css(
                 color_mapping,
@@ -1043,6 +1051,37 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 alpha=0.8,
                 s=point_size
             )
+            # Add legend for categorical coloring (not time-based)
+            if plot_type_dropdown != "Time-based coloring" and treat_as_categorical_checkbox and has_multiple_queries:
+                # Get unique categories and their colors from the color mapping dict
+                unique_categories = records_df['query_index'].unique()
+                
+                # Create legend handles with larger point size using the color mapping
+                legend_handles = []
+                for query_idx in sorted(unique_categories):
+                    # Get the readable name for this query
+                    try:
+                        if query_idx < len(urls):
+                            readable_name = openalex_url_to_readable_name(urls[query_idx])
+                            # Truncate long names for legend display
+                            if len(readable_name) > 40:
+                                readable_name = readable_name[:37] + "..."
+                        else:
+                            readable_name = f"Query {query_idx + 1}"
+                    except Exception as e:
+                        readable_name = f"Query {query_idx + 1}"
+                    
+                    color = query_color_map[query_idx]
+                    legend_handles.append(plt.Line2D([0], [0], marker='o', color='w', 
+                                                markerfacecolor=color, markersize=9, 
+                                                label=readable_name, linestyle='None'))
+                
+            # Add legend in upper left corner
+            plt.legend(handles=legend_handles, loc='upper left', frameon=False, 
+                      fancybox=False, shadow=False, framealpha=0.9, fontsize=9,
+                      #prop={'weight': 'bold'}
+                      )
+            
         print(f"Scatter plot creation completed in {time.time() - scatter_start:.2f} seconds")
 
         # Save plot
