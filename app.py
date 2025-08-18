@@ -5,7 +5,6 @@ print(f"Starting up: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 # Standard library imports
 
 import os
-os.environ["MPLCONFIGDIR"] = "/tmp/matplotlib"  # set BEFORE importing matplotlib
 
 #Enforce local cching:
 
@@ -239,9 +238,11 @@ def no_op_decorator(func):
 # decorator_to_use = spaces.GPU() if is_running_in_hf_space() else no_op_decorator
 # #duration=120
 
-@spaces.GPU(duration=1)
-def _warmup():
+@spaces.GPU(duration=1)          # ← forces the detector to see a GPU-aware fn
+def _warmup(): 
     print("Warming up...")
+
+_warmup()
 
 
 # if is_running_in_hf_space():
@@ -1421,9 +1422,6 @@ with gr.Blocks(theme=theme, css=f"""
         inputs=text_input,
         outputs=query_display
     )
-
-    # Run a tiny GPU warmup safely inside a request context
-    demo.load(fn=_warmup, inputs=None, outputs=None, queue=False)
 
 
 # demo.static_dirs = {
