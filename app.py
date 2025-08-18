@@ -1424,7 +1424,7 @@ with gr.Blocks(theme=theme, css=f"""
         outputs=query_display
     )
     
-    _warmup()
+    demo.load(fn=_warmup, inputs=None, outputs=None, queue=False)
     
 
 
