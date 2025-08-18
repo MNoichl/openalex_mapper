@@ -242,7 +242,7 @@ def no_op_decorator(func):
 def _warmup(): 
     print("Warming up...")
 
-_warmup()
+
 
 
 # if is_running_in_hf_space():
@@ -1423,6 +1423,9 @@ with gr.Blocks(theme=theme, css=f"""
         inputs=text_input,
         outputs=query_display
     )
+    
+    _warmup()
+    
 
 
 # demo.static_dirs = {
