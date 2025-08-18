@@ -1256,6 +1256,7 @@ with gr.Blocks(theme=theme, css=f"""
                 info="Export a static PNG visualization. This will make things slower!"
             )
             
+            
             gr.Markdown("### Citation graph")
             citation_graph_checkbox = gr.Checkbox(
                 label="Add Citation Graph",
