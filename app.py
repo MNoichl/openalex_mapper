@@ -475,8 +475,8 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                     all_records = []
                     records_count = 0
                     
-                    # Use default cursor pagination for non-sampled queries
-                    for page in query.paginate(per_page=200, n_max=None):
+                    # Use page pagination for fallback method
+                    for page in query.paginate(per_page=200, method='page', n_max=None):
                         for record in page:
                             all_records.append(record)
                             records_count += 1
@@ -513,7 +513,7 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 should_break_current_query = False
                 # For "First n samples", limit the maximum records fetched to avoid over-downloading
                 max_records_to_fetch = target_size if reduce_sample_checkbox and sample_reduction_method == "First n samples" else None
-                for page in query.paginate(per_page=200, n_max=max_records_to_fetch):
+                for page in query.paginate(per_page=200, method='page', n_max=max_records_to_fetch):
                     # Add retry mechanism for processing each page
                     max_retries = 5
                     base_wait_time = 1  # Starting wait time in seconds
