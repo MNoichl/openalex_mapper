@@ -42,6 +42,9 @@ def draw_citation_graph(G, bundle_edges=False, path=None, min_max_coordinates=No
     for node in G.nodes():
         pos[node] = (G.nodes[node]['X'], G.nodes[node]['Y'])
     fig, ax = plt.subplots(figsize=(20, 20))
+    # Ensure a solid white background (no transparency)
+    fig.patch.set_facecolor('green')
+    ax.set_facecolor('green')
     plt.margins(0, 0)  # Remove margins
     if bundle_edges:
         # Turning color into rgb
@@ -64,4 +67,4 @@ def draw_citation_graph(G, bundle_edges=False, path=None, min_max_coordinates=No
         plt.ylim(min_max_coordinates[2], min_max_coordinates[3])
     
     if path is not None:
-        plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=800, transparent=True)
+        plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=800, transparent=False)

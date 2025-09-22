@@ -310,6 +310,10 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     plot_time_checkbox = plot_type_dropdown == "Time-based coloring"
     treat_as_categorical_checkbox = plot_type_dropdown == "Categorical coloring"
     
+    # Initialize variables used later across branches
+    urls = []
+    query_indices = []
+    
     # Helper function to generate error responses
     def create_error_response(error_message):
         return [
@@ -452,19 +456,63 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
                 try:
                     # Check if PyAlex sample method exists and works
                     if hasattr(query, 'sample'):
-                        sampled_query = query.sample(target_size, seed=seed_int)
-                        
-                        # IMPORTANT: When using sample(), must use method='page' for pagination!
                         sampled_records = []
-                        records_count = 0
-                        for page in sampled_query.paginate(per_page=200, method='page', n_max=None):
-                            for record in page:
-                                sampled_records.append(record)
-                                records_count += 1
-                                progress(0.1 + (0.15 * records_count / target_size), 
-                                        desc=f"Getting sampled data from query {i+1}/{len(urls)}... ({records_count}/{target_size})")
+                        seen_ids = set()  # Track IDs to avoid duplicates
                         
-                        print(f'PyAlex sampling successful: got {len(sampled_records)} records')
+                        # If target_size > 10k, do batched sampling
+                        if target_size > 10000:
+                            batch_size = 9998  # Use 9998 to stay safely under 10k limit
+                            remaining = target_size
+                            batch_num = 1
+                            
+                            print(f'Target size {target_size} > 10k, using batched sampling with batch size {batch_size}')
+                            
+                            while remaining > 0 and len(sampled_records) < target_size:
+                                current_batch_size = min(batch_size, remaining)
+                                batch_seed = seed_int + batch_num  # Different seed for each batch
+                                
+                                print(f'Batch {batch_num}: requesting {current_batch_size} samples (seed={batch_seed})')
+                                
+                                # Sample this batch
+                                batch_query = query.sample(current_batch_size, seed=batch_seed)
+                                
+                                batch_records = []
+                                batch_count = 0
+                                for page in batch_query.paginate(per_page=200, method='page', n_max=None):
+                                    for record in page:
+                                        # Check for duplicates using OpenAlex ID
+                                        record_id = record.get('id', '')
+                                        if record_id not in seen_ids:
+                                            seen_ids.add(record_id)
+                                            batch_records.append(record)
+                                            batch_count += 1
+                                
+                                sampled_records.extend(batch_records)
+                                remaining -= len(batch_records)
+                                batch_num += 1
+                                
+                                print(f'Batch {batch_num-1} complete: got {len(batch_records)} unique records ({len(sampled_records)}/{target_size} total)')
+                                
+                                progress(0.1 + (0.15 * len(sampled_records) / target_size), 
+                                        desc=f"Batched sampling from query {i+1}/{len(urls)}... ({len(sampled_records)}/{target_size})")
+                                
+                                # Safety check to avoid infinite loops
+                                if batch_num > 20:  # Max 20 batches (should handle up to ~200k samples)
+                                    print("Warning: Maximum batch limit reached, stopping sampling")
+                                    break
+                        else:
+                            # Single batch sampling for <= 10k
+                            sampled_query = query.sample(target_size, seed=seed_int)
+                            
+                            records_count = 0
+                            for page in sampled_query.paginate(per_page=200, method='page', n_max=None):
+                                for record in page:
+                                    sampled_records.append(record)
+                                    records_count += 1
+                                    progress(0.1 + (0.15 * records_count / target_size), 
+                                            desc=f"Getting sampled data from query {i+1}/{len(urls)}... ({records_count}/{target_size})")
+                        
+                        print(f'PyAlex sampling successful: got {len(sampled_records)} records (requested {target_size})')
                     else:
                         raise AttributeError("sample method not available")
                         
