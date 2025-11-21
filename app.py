@@ -313,6 +313,8 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     # Initialize variables used later across branches
     urls = []
     query_indices = []
+    # Default to anonymous unless we can positively identify the user via a valid token
+    user_type = "anonymous"
     
     # Helper function to generate error responses
     def create_error_response(error_message):
@@ -327,17 +329,26 @@ def predict(request: gr.Request, text_input, sample_size_slider, reduce_sample_c
     # Get the authentication token
     if is_running_in_hf_space():
         token = _get_token(request)
-        payload = token.split('.')[1]
-        payload = f"{payload}{'=' * ((4 - len(payload) % 4) % 4)}"
-        payload = json.loads(base64.urlsafe_b64decode(payload).decode())
-        print(payload)
-        user = payload['user']
-        if user == None:
+        try:
+            if token and '.' in token:
+                payload_part = token.split('.')[1]
+                payload_part = f"{payload_part}{'=' * ((4 - len(payload_part) % 4) % 4)}"
+                payload = json.loads(base64.urlsafe_b64decode(payload_part).decode())
+                print(payload)
+                user = payload.get('user')
+                if user is None:
+                    user_type = "anonymous"
+                elif '[pro]' in user:
+                    user_type = "pro"
+                else:
+                    user_type = "registered"
+            else:
+                # No token available or malformed; treat as anonymous
+                user_type = "anonymous"
+        except Exception as e:
+            # Any decoding/parsing error → anonymous fallback
+            print(f"Warning: failed to parse auth token: {e}")
             user_type = "anonymous"
-        elif '[pro]' in user:
-            user_type = "pro"
-        else:
-            user_type = "registered"
         print(f"User type: {user_type}")
 
     # Check if a file has been uploaded or if we need to use OpenAlex query
