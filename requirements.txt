@@ -1,7 +1,7 @@
-datamapplot @ git+https://github.com/MNoichl/datamapplot.git@main
+datamapplot @ git+https://github.com/MNoichl/datamapplot.git@backup_early_november
 uvicorn
 fastapi
-numpy==2.0.0
+numpy
 requests
 pyalex
 compress-pickle
@@ -10,7 +10,7 @@ adapters
 torch
 tqdm
 pyarrow
-numba==0.62.1
+numba==0.58.1
 umap-learn==0.5.7
 pynndescent==0.5.12
 sentence-transformers==3.3.1
