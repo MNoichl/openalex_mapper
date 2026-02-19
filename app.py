@@ -84,8 +84,9 @@ from sklearn.neighbors import NearestNeighbors
 
 
 def is_running_in_hf_zero_gpu():
-    print(os.environ.get("SPACES_ZERO_GPU"))
-    return os.environ.get("SPACES_ZERO_GPU")
+    value = os.environ.get("SPACES_ZERO_GPU")
+    print(value)
+    return value is not None and value.lower() in ("1", "t", "true")
     
 is_running_in_hf_zero_gpu()
 
@@ -98,7 +99,6 @@ def is_running_in_hf_space():
     
 try:
     import spaces
-    from spaces.zero.client import _get_token
     HAS_SPACES = True
 except (ImportError, ModuleNotFoundError):
     HAS_SPACES = False
@@ -111,8 +111,44 @@ if not HAS_SPACES:
                 return f
             return deco
     spaces = _Dummy()          # fake module object
-    def _get_token(request):   # stub, never called off-Space
-        return ""
+
+def _get_token(request: gr.Request):
+    """
+    Return Hugging Face's per-user ZeroGPU token (JWT), if present.
+
+    Newer `spaces` versions (>=0.47.0) no longer expose `spaces.zero.client._get_token`,
+    so we read the header directly and keep a legacy fallback.
+    """
+    if request is None:
+        return None
+
+    headers = getattr(request, "headers", None)
+    if headers is None:
+        return None
+
+    # Current ZeroGPU handshake header
+    try:
+        token = headers.get("x-ip-token") or headers.get("X-IP-Token")
+        if token:
+            return token
+    except Exception:
+        pass
+
+    if not HAS_SPACES:
+        return None
+
+    # Backwards-compatible fallback for older `spaces` versions
+    try:
+        from spaces.zero.client import _get_token as legacy_get_token  # type: ignore
+    except Exception:
+        return None
+
+    try:
+        token = legacy_get_token(request)
+    except Exception:
+        return None
+
+    return token or None
 
 
 #if is_running_in_hf_space():

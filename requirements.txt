@@ -1,4 +1,5 @@
 datamapplot @ git+https://github.com/MNoichl/datamapplot.git@backup_early_november
+spaces
 uvicorn
 fastapi
 numpy
