@@ -5,6 +5,7 @@ colorFrom: indigo
 colorTo: yellow
 sdk: gradio
 sdk_version: 5.23.1
+python_version: "3.11"
 app_file: app.py
 pinned: true
 # hf_oauth: true
@@ -15,4 +16,3 @@ preload_from_hub:
   - m7n/discipline-tuned_specter_2_024 umap_mapper_250k_random_OA_discipline_tuned_specter_2_params.pkl
   - m7n/discipline-tuned_specter_2_024 model.safetensors
 ---
-
