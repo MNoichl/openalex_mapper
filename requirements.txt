@@ -11,7 +11,7 @@ adapters
 torch
 tqdm
 pyarrow
-numba==0.58.1
+numba==0.64.0
 umap-learn==0.5.7
 pynndescent==0.5.12
 sentence-transformers==3.3.1
