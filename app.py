@@ -44,6 +44,9 @@ import pickle
 
 # Third-party imports
 import numpy as np
+# Compatibility shim for NumPy 2.x: some deps (e.g. pynndescent/umap) still reference `np.infty`.
+if not hasattr(np, "infty"):
+    np.infty = np.inf  # type: ignore[attr-defined]
 import pandas as pd
 import torch
 import gradio as gr
